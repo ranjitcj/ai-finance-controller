@@ -1,6 +1,6 @@
 {
-  "id": "64b3898a-fc0e-4199-8af7-eeb09ce0bc58",
-  "prevId": "aa7c32c4-8d2f-4475-b42a-fb9c11a3ec22",
+  "id": "70ea16e5-07fe-4fff-b668-c00efc04ae8f",
+  "prevId": "64b3898a-fc0e-4199-8af7-eeb09ce0bc58",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -670,6 +670,33 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "transactions_exact_retrieval_idx": {
+          "name": "transactions_exact_retrieval_idx",
+          "columns": [
+            {
+              "expression": "amount",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "transaction_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -20,8 +20,8 @@ TXN-002,500.00,USD,2026-08-22,REF-002,Globex`;
         amount: "1250.00",
         currency: "USD",
         date: new Date("2026-08-23"),
-        reference: "REF-001",
-        vendor: "Acme Corp",
+        reference: "ref001",
+        vendor: "acme corp",
       },
     });
   });

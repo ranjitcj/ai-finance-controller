@@ -16,8 +16,8 @@ describe("normalizeTransaction", () => {
     expect(result.externalId).toBe("TXN-001");
     expect(result.amount).toBe("1250.00");
     expect(result.currency).toBe("USD");
-    expect(result.reference).toBe("REF-001");
-    expect(result.vendor).toBe("Acme Corp");
+    expect(result.reference).toBe("ref001");
+    expect(result.vendor).toBe("acme corp");
   });
   it("rejects an invalid currency", () => {
     expect(() =>

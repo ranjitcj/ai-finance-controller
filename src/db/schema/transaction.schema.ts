@@ -1,5 +1,6 @@
 import {
   date,
+  index,
   integer,
   numeric,
   pgEnum,
@@ -130,6 +131,11 @@ export const transactions = pgTable(
     batchExternalIdUnique: uniqueIndex("transactions_batch_external_id_unique").on(
       table.batchId,
       table.externalId,
+    ),
+    exactRetrievalIndex: index("transactions_exact_retrieval_idx").on(
+      table.amount,
+      table.currency,
+      table.transactionDate,
     ),
   }),
 );

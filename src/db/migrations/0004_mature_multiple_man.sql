@@ -1,0 +1,1 @@
+CREATE INDEX "transactions_exact_retrieval_idx" ON "transactions" USING btree ("amount","currency","transaction_date");
