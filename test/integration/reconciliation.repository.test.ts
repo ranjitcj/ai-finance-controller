@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-
+import crypto from "node:crypto";
 import { db } from "../../src/db/client.js";
 
 import {
@@ -49,6 +49,7 @@ describe("reconciliation evidence", () => {
       .returning();
 
     const reconciliation = await createReconciliationResult({
+      idempotencyKey: `test-${crypto.randomUUID()}`,
       transactionId: transaction!.id,
       status: "MATCHED",
       confidence: 95,

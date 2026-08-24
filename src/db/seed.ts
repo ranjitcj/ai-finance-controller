@@ -1,5 +1,9 @@
 import { db } from "./client.js";
-import { batches, sourceFiles, transactions } from "./schema/transaction.schema.js";
+import {
+  batches,
+  sourceFiles,
+  transactions,
+} from "./schema/transaction.schema.js";
 import {
   candidates,
   evidence,
@@ -77,9 +81,10 @@ async function seed() {
     .insert(reconciliationResults)
     .values({
       transactionId: matchedTransaction.id,
+      idempotencyKey: `seed-matched-${matchedTransaction.id}`,
       status: "MATCHED",
-      confidence: 95,
-      reason: "Seed exact match",
+      confidence: 100,
+      reason: "Seeded deterministic match",
     })
     .returning();
 
@@ -115,9 +120,10 @@ async function seed() {
     .insert(reconciliationResults)
     .values({
       transactionId: reviewTransaction.id,
+      idempotencyKey: `seed-review-${reviewTransaction.id}`,
       status: "REVIEW_REQUIRED",
-      confidence: 65,
-      reason: "Seed mismatch requires review",
+      confidence: 0,
+      reason: "Seeded review case",
     })
     .returning();
 

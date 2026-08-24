@@ -87,6 +87,8 @@ export const reconciliationResults = pgTable(
         onDelete: "cascade",
       }),
 
+    idempotencyKey: text("idempotency_key").notNull(),
+
     status: reconciliationStatusEnum("status").notNull(),
 
     confidence: integer("confidence"),
@@ -109,6 +111,9 @@ export const reconciliationResults = pgTable(
     transactionUnique: uniqueIndex("reconciliation_results_transaction_unique").on(
       table.transactionId,
     ),
+    idempotencyKeyUnique: uniqueIndex(
+      "reconciliation_results_idempotency_key_unique",
+    ).on(table.idempotencyKey),
   }),
 );
 

@@ -6,6 +6,19 @@ import {
   exceptions,
   auditEvents,
 } from "../schema/reconciliation.schema.js";
+import { eq } from "drizzle-orm";
+
+export async function findReconciliationResultByIdempotencyKey(
+  idempotencyKey: string,
+) {
+  const [result] = await db
+    .select()
+    .from(reconciliationResults)
+    .where(eq(reconciliationResults.idempotencyKey, idempotencyKey))
+    .limit(1);
+
+  return result;
+}
 
 export interface CreateEvidenceInput {
   reconciliationResultId: string;
@@ -38,6 +51,7 @@ export async function createEvidence(input: CreateEvidenceInput) {
 
 export interface CreateReconciliationResultInput {
   transactionId: string;
+  idempotencyKey: string;
   status: "MATCHED" | "NO_MATCH" | "REVIEW_REQUIRED" | "FAILED";
   confidence?: number;
   reason?: string;
@@ -69,11 +83,14 @@ export async function createCandidate(input: CreateCandidateInput) {
   return candidate;
 }
 
-export async function createReconciliationResult(input: CreateReconciliationResultInput) {
+export async function createReconciliationResult(
+  input: CreateReconciliationResultInput,
+) {
   const [result] = await db
     .insert(reconciliationResults)
     .values({
       transactionId: input.transactionId,
+      idempotencyKey: input.idempotencyKey,
       status: input.status,
       confidence: input.confidence,
       reason: input.reason,
@@ -118,12 +135,12 @@ export interface CreateAuditEventInput {
   batchId?: string;
   transactionId?: string;
   eventType:
-    | "BATCH_CREATED"
-    | "FILE_INGESTED"
-    | "TRANSACTION_CREATED"
-    | "RECONCILIATION_CREATED"
-    | "EXCEPTION_CREATED"
-    | "EXCEPTION_RESOLVED";
+  | "BATCH_CREATED"
+  | "FILE_INGESTED"
+  | "TRANSACTION_CREATED"
+  | "RECONCILIATION_CREATED"
+  | "EXCEPTION_CREATED"
+  | "EXCEPTION_RESOLVED";
   message: string;
   metadata?: string;
 }

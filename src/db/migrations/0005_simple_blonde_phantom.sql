@@ -1,0 +1,2 @@
+ALTER TABLE "reconciliation_results" ADD COLUMN "idempotency_key" text NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "reconciliation_results_idempotency_key_unique" ON "reconciliation_results" USING btree ("idempotency_key");
