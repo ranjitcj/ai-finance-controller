@@ -3,10 +3,9 @@ import { evaluateCurrencyRule } from "./currency.rule.js";
 import { evaluateReferenceRule } from "./reference.rule.js";
 import { evaluateDateRule } from "./date.rule.js";
 import { evaluateDuplicateRule } from "./duplicate.rule.js";
-
 import type { DeterministicEvidence } from "./deterministic-evidence.js";
 
-export interface DeterministicInput {
+export interface DeterministicRuleInput {
     sourceAmount: string;
     candidateAmount: string;
 
@@ -23,7 +22,7 @@ export interface DeterministicInput {
 }
 
 export function evaluateDeterministicRules(
-    input: DeterministicInput,
+    input: DeterministicRuleInput,
 ): DeterministicEvidence {
     const amount = evaluateAmountRule(
         input.sourceAmount,
@@ -45,27 +44,9 @@ export function evaluateDeterministicRules(
         input.candidateDate,
     );
 
-    const duplicate = evaluateDuplicateRule(input.candidateCount);
-
-    let decision: DeterministicEvidence["decision"];
-
-    if (duplicate.result === "ESCALATE") {
-        decision = "ESCALATE";
-    } else if (
-        amount.result === "FAIL" ||
-        currency.result === "FAIL" ||
-        date.result === "FAIL"
-    ) {
-        decision = "NO_MATCH";
-    } else if (
-        duplicate.result === "PASS" &&
-        amount.result === "PASS" &&
-        currency.result === "PASS"
-    ) {
-        decision = "MATCH";
-    } else {
-        decision = "NO_MATCH";
-    }
+    const duplicate = evaluateDuplicateRule(
+        input.candidateCount,
+    );
 
     return {
         amount,
@@ -73,6 +54,5 @@ export function evaluateDeterministicRules(
         reference,
         date,
         duplicate,
-        decision,
     };
 }

@@ -1,19 +1,20 @@
-import { findExactCandidates } from "./retrieval/exact-retrieval.js";
-import { evaluateDeterministicRules } from "./rules/deterministic-engine.js";
+import { findExactCandidates } from "../../src/reconciliation/retrieval/exact-retrieval.js";
+import { evaluateDeterministicRules } from "../../src/reconciliation/rules/deterministic-engine.js";
+
+import {
+    transitionTransactionState,
+    type TransactionState,
+} from "../../src/reconciliation/state/transaction-state.js";
+
+import type { NormalizedTransaction } from "../../src/domain/transaction/transaction.schema.js";
+import type { DeterministicEvidence } from "../../src/reconciliation/rules/deterministic-evidence.js";
 
 import {
     createCandidate,
     createEvidence,
     createReconciliationResult,
     findReconciliationResultByIdempotencyKey,
-} from "../db/repositories/reconciliation.repository.js";
-
-import {
-    transitionTransactionState,
-    type TransactionState,
-} from "./state/transaction-state.js";
-
-import type { NormalizedTransaction } from "../domain/transaction/transaction.schema.js";
+} from "../../src/db/repositories/reconciliation.repository.js";
 
 export interface ReconciliationServiceInput {
     transactionId: string;
@@ -27,6 +28,25 @@ type ReconciliationResultStatus =
     | "NO_MATCH"
     | "REVIEW_REQUIRED"
     | "FAILED";
+
+function determineLegacyState(
+    evidence: DeterministicEvidence,
+): "MATCHED" | "NO_MATCH" | "REVIEW_REQUIRED" {
+    if (evidence.duplicate.result === "ESCALATE") {
+        return "REVIEW_REQUIRED";
+    }
+
+    if (
+        evidence.amount.result === "FAIL" ||
+        evidence.currency.result === "FAIL" ||
+        evidence.reference.result === "FAIL" ||
+        evidence.date.result === "FAIL"
+    ) {
+        return "NO_MATCH";
+    }
+
+    return "MATCHED";
+}
 
 function toReconciliationResultStatus(
     state:
@@ -50,6 +70,42 @@ function toReconciliationResultStatus(
     }
 }
 
+function calculateCandidateScore(
+    evidence: DeterministicEvidence,
+): number {
+    const rules = [
+        evidence.amount.result === "PASS",
+        evidence.currency.result === "PASS",
+        evidence.reference.result === "PASS",
+        evidence.date.result === "PASS" ||
+        evidence.date.result === "PASS_WITH_TOLERANCE",
+        evidence.duplicate.result === "PASS",
+    ];
+
+    const passedRules = rules.filter(Boolean).length;
+
+    return Math.round((passedRules / rules.length) * 100);
+}
+
+function toCandidateDecision(
+    evidence: DeterministicEvidence,
+): "MATCH" | "REJECT" | "REVIEW" {
+    if (evidence.duplicate.result === "ESCALATE") {
+        return "REVIEW";
+    }
+
+    if (
+        evidence.amount.result === "FAIL" ||
+        evidence.currency.result === "FAIL" ||
+        evidence.reference.result === "FAIL" ||
+        evidence.date.result === "FAIL"
+    ) {
+        return "REJECT";
+    }
+
+    return "MATCH";
+}
+
 export async function reconciliationService(
     input: ReconciliationServiceInput,
 ) {
@@ -61,11 +117,13 @@ export async function reconciliationService(
 
     /*
      * Idempotency:
-     * If this request was already processed, return the existing
-     * reconciliation result instead of creating another one.
+     * Return the already persisted result if this request
+     * has previously been processed.
      */
     const existingResult =
-        await findReconciliationResultByIdempotencyKey(input.idempotencyKey);
+        await findReconciliationResultByIdempotencyKey(
+            input.idempotencyKey,
+        );
 
     if (existingResult) {
         return {
@@ -78,7 +136,7 @@ export async function reconciliationService(
     }
 
     /*
-     * 1. Exact candidate retrieval
+     * 1. Retrieve exact candidates.
      */
     const candidates = await findExactCandidates(input.transaction);
 
@@ -93,7 +151,7 @@ export async function reconciliationService(
     const candidateCount = candidates.length;
 
     /*
-     * 3. No candidates
+     * 3. No candidates.
      */
     if (candidateCount === 0) {
         const evidence = evaluateDeterministicRules({
@@ -128,13 +186,14 @@ export async function reconciliationService(
         return {
             state: finalState,
             candidates,
+            evaluations: [],
             evidence,
             result,
         };
     }
 
     /*
-     * 4. Evaluate every candidate
+     * 4. Evaluate every candidate using structured deterministic evidence.
      */
     const candidateEvaluations = candidates.map((candidate) => {
         const candidateDate = new Date(
@@ -149,7 +208,8 @@ export async function reconciliationService(
             candidateCurrency: candidate.currency,
 
             sourceReference: input.transaction.reference,
-            candidateReference: candidate.reference ?? undefined,
+            candidateReference:
+                candidate.reference ?? undefined,
 
             sourceDate: input.transaction.date,
             candidateDate,
@@ -172,7 +232,10 @@ export async function reconciliationService(
     }
 
     /*
-     * 5. Determine final transaction state
+     * 5. Deterministic final decision.
+     *
+     * Multiple candidates are always REVIEW.
+     * Otherwise use the deterministic policy decision.
      */
     let finalState: TransactionState;
 
@@ -181,72 +244,95 @@ export async function reconciliationService(
             candidatesFoundState,
             "REVIEW_REQUIRED",
         );
-    } else if (first.evidence.decision === "MATCH") {
-        finalState = transitionTransactionState(
-            candidatesFoundState,
-            "MATCHED",
-        );
-    } else if (first.evidence.decision === "ESCALATE") {
-        finalState = transitionTransactionState(
-            candidatesFoundState,
-            "REVIEW_REQUIRED",
-        );
     } else {
+        const legacyState = determineLegacyState(
+            first.evidence,
+        );
+
         finalState = transitionTransactionState(
             candidatesFoundState,
-            "NO_MATCH",
+            legacyState,
         );
     }
 
     /*
-     * 6. Persist reconciliation result
+     * 6. Persist reconciliation result.
+     *
+     * Confidence is NOT an LLM probability.
+     * It is only a deterministic evidence score.
      */
     const result = await createReconciliationResult({
         transactionId: input.transactionId,
         idempotencyKey: input.idempotencyKey,
         status: toReconciliationResultStatus(finalState),
-        confidence: finalState === "MATCHED" ? 1 : 0,
-        reason: `Deterministic reconciliation completed with state ${finalState}.`,
+        confidence:
+            finalState === "MATCHED"
+                ? calculateCandidateScore(first.evidence)
+                : 0,
+        reason:
+            `Deterministic evidence evaluated. ` +
+            `Final state: ${finalState}.`,
     });
 
     /*
-     * 7. Persist candidate decisions
+     * 7. Persist candidate decisions and evidence.
      */
     for (const evaluation of candidateEvaluations) {
-        const candidateDecision =
-            evaluation.evidence.decision === "MATCH"
-                ? "MATCH"
-                : evaluation.evidence.decision === "ESCALATE"
-                    ? "REVIEW"
-                    : "REJECT";
+        /*
+         * IMPORTANT:
+         *
+         * candidate.id is the PostgreSQL transaction primary key
+         * returned by findExactCandidates().
+         *
+         * We explicitly use that persisted transaction ID here.
+         */
+        const candidateTransactionId =
+            evaluation.candidate.id;
 
         const candidate = await createCandidate({
             reconciliationResultId: result.id,
-            transactionId: evaluation.candidate.id,
-            score:
-                evaluation.evidence.decision === "MATCH"
-                    ? 1
-                    : 0,
-            decision: candidateDecision,
-            reason: evaluation.evidence.decision,
+
+            /*
+             * FK:
+             * candidates.transaction_id
+             *       ↓
+             * transactions.id
+             */
+            transactionId: candidateTransactionId,
+
+            score: calculateCandidateScore(
+                evaluation.evidence,
+            ),
+
+            decision: toCandidateDecision(
+                evaluation.evidence,
+            ),
+
+            reason: "Deterministic evidence evaluated.",
         });
 
         await createEvidence({
             reconciliationResultId: result.id,
             candidateId: candidate.id,
             field: "amount",
-            sourceValue: evaluation.evidence.amount.sourceAmount,
-            candidateValue: evaluation.evidence.amount.candidateAmount,
-            explanation: `Amount rule: ${evaluation.evidence.amount.result}`,
+            sourceValue:
+                evaluation.evidence.amount.sourceAmount,
+            candidateValue:
+                evaluation.evidence.amount.candidateAmount,
+            explanation:
+                `Amount rule: ${evaluation.evidence.amount.result}`,
         });
 
         await createEvidence({
             reconciliationResultId: result.id,
             candidateId: candidate.id,
             field: "currency",
-            sourceValue: evaluation.evidence.currency.sourceCurrency,
-            candidateValue: evaluation.evidence.currency.candidateCurrency,
-            explanation: `Currency rule: ${evaluation.evidence.currency.result}`,
+            sourceValue:
+                evaluation.evidence.currency.sourceCurrency,
+            candidateValue:
+                evaluation.evidence.currency.candidateCurrency,
+            explanation:
+                `Currency rule: ${evaluation.evidence.currency.result}`,
         });
 
         await createEvidence({
@@ -254,20 +340,27 @@ export async function reconciliationService(
             candidateId: candidate.id,
             field: "reference",
             sourceValue:
-                evaluation.evidence.reference.normalizedSourceReference ??
-                evaluation.evidence.reference.sourceReference,
+                evaluation.evidence.reference
+                    .normalizedSourceReference ??
+                evaluation.evidence.reference
+                    .sourceReference,
             candidateValue:
-                evaluation.evidence.reference.normalizedCandidateReference ??
-                evaluation.evidence.reference.candidateReference,
-            explanation: `Reference rule: ${evaluation.evidence.reference.result}`,
+                evaluation.evidence.reference
+                    .normalizedCandidateReference ??
+                evaluation.evidence.reference
+                    .candidateReference,
+            explanation:
+                `Reference rule: ${evaluation.evidence.reference.result}`,
         });
 
         await createEvidence({
             reconciliationResultId: result.id,
             candidateId: candidate.id,
             field: "date",
-            sourceValue: evaluation.evidence.date.sourceDate,
-            candidateValue: evaluation.evidence.date.candidateDate,
+            sourceValue:
+                evaluation.evidence.date.sourceDate,
+            candidateValue:
+                evaluation.evidence.date.candidateDate,
             explanation:
                 `Date rule: ${evaluation.evidence.date.result}; ` +
                 `difference=${evaluation.evidence.date.differenceInDays} days; ` +
@@ -278,8 +371,12 @@ export async function reconciliationService(
             reconciliationResultId: result.id,
             candidateId: candidate.id,
             field: "duplicate",
-            sourceValue: String(evaluation.evidence.duplicate.candidateCount),
-            candidateValue: String(evaluation.evidence.duplicate.candidateCount),
+            sourceValue: String(
+                evaluation.evidence.duplicate.candidateCount,
+            ),
+            candidateValue: String(
+                evaluation.evidence.duplicate.candidateCount,
+            ),
             explanation:
                 `Duplicate rule: ${evaluation.evidence.duplicate.result}`,
         });
