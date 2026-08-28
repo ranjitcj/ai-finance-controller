@@ -65,6 +65,9 @@ describe("reconciliationService", () => {
 
             /*
              * Source transaction being reconciled.
+             *
+             * IMPORTANT:
+             * Use the actual ID returned by the database.
              */
             const [transaction] = await db
                 .insert(transactions)
@@ -83,12 +86,16 @@ describe("reconciliationService", () => {
                 .returning();
 
             expect(transaction).toBeDefined();
+
             transactionId = transaction!.id;
 
             /*
              * Separate candidate transaction.
              *
-             * This is the transaction that retrieval should find.
+             * This is the transaction retrieval should find.
+             *
+             * IMPORTANT:
+             * Again, retain the actual database-generated ID.
              */
             const [candidateTransaction] = await db
                 .insert(transactions)
@@ -107,13 +114,40 @@ describe("reconciliationService", () => {
                 .returning();
 
             expect(candidateTransaction).toBeDefined();
+
             candidateTransactionId = candidateTransaction!.id;
 
             /*
+             * Sanity checks:
+             * Make sure both IDs actually exist in the database
+             * before calling reconciliationService().
+             */
+            const [persistedTransaction] = await db
+                .select({
+                    id: transactions.id,
+                })
+                .from(transactions)
+                .where(eq(transactions.id, transactionId));
+
+            expect(persistedTransaction?.id).toBe(transactionId);
+
+            const [persistedCandidate] = await db
+                .select({
+                    id: transactions.id,
+                })
+                .from(transactions)
+                .where(eq(transactions.id, candidateTransactionId));
+
+            expect(persistedCandidate?.id).toBe(candidateTransactionId);
+
+            /*
              * Reconciliation input.
+             *
+             * IMPORTANT:
+             * Pass the actual persisted transaction ID.
              */
             const input = {
-                transactionId: transaction!.id,
+                transactionId,
                 idempotencyKey,
                 currentState: "PENDING" as const,
 
@@ -138,12 +172,10 @@ describe("reconciliationService", () => {
 
             expect(first.candidates).toHaveLength(1);
 
-            expect(first.result.transactionId).toBe(
-                transaction!.id,
-            );
+            expect(first.result.transactionId).toBe(transactionId);
 
             expect(first.candidates[0]?.id).toBe(
-                candidateTransaction!.id,
+                candidateTransactionId,
             );
 
             resultId = first.result.id;
@@ -173,7 +205,6 @@ describe("reconciliationService", () => {
             expect(results).toHaveLength(1);
 
             expect(results[0]?.id).toBe(first.result.id);
-
             expect(results[0]?.status).toBe("MATCHED");
 
             /*
@@ -185,18 +216,12 @@ describe("reconciliationService", () => {
                 .where(
                     eq(
                         reconciliationResults.id,
-                        resultId!,
+                        resultId,
                     ),
                 );
 
-            expect(persisted?.transactionId).toBe(
-                transaction!.id,
-            );
-
-            expect(persisted?.idempotencyKey).toBe(
-                idempotencyKey,
-            );
-
+            expect(persisted?.transactionId).toBe(transactionId);
+            expect(persisted?.idempotencyKey).toBe(idempotencyKey);
             expect(persisted?.status).toBe("MATCHED");
 
             /*
@@ -257,7 +282,6 @@ describe("reconciliationService", () => {
                         item.sourceValue === "1",
                 ),
             ).toBe(true);
-
         } finally {
             /*
              * Delete reconciliation result first.
@@ -303,6 +327,9 @@ describe("reconciliationService", () => {
                     );
             }
 
+            /*
+             * Delete source file.
+             */
             if (sourceFileId) {
                 await db
                     .delete(sourceFiles)
@@ -314,6 +341,9 @@ describe("reconciliationService", () => {
                     );
             }
 
+            /*
+             * Delete batch.
+             */
             if (batchId) {
                 await db
                     .delete(batches)
