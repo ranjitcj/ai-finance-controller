@@ -138,7 +138,10 @@ export async function reconciliationService(
     /*
      * 1. Retrieve exact candidates.
      */
-    const candidates = await findExactCandidates(input.transaction);
+    const candidates = await findExactCandidates(
+        input.transaction,
+        input.transactionId,
+    );
 
     /*
      * 2. PENDING → CANDIDATES_FOUND
