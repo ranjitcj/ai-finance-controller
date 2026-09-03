@@ -8,7 +8,10 @@ import {
 
 import type { NormalizedTransaction } from "../../src/domain/transaction/transaction.schema.js";
 import type { DeterministicEvidence } from "../../src/reconciliation/rules/deterministic-evidence.js";
-
+import {
+    applyDecisionPolicy,
+    type DecisionPolicyResult,
+} from "../../src/reconciliation/policy/decision-policy.js";
 import {
     createCandidate,
     createEvidence,
@@ -29,25 +32,6 @@ type ReconciliationResultStatus =
     | "REVIEW_REQUIRED"
     | "FAILED";
 
-function determineLegacyState(
-    evidence: DeterministicEvidence,
-): "MATCHED" | "NO_MATCH" | "REVIEW_REQUIRED" {
-    if (evidence.duplicate.result === "ESCALATE") {
-        return "REVIEW_REQUIRED";
-    }
-
-    if (
-        evidence.amount.result === "FAIL" ||
-        evidence.currency.result === "FAIL" ||
-        evidence.reference.result === "FAIL" ||
-        evidence.date.result === "FAIL"
-    ) {
-        return "NO_MATCH";
-    }
-
-    return "MATCHED";
-}
-
 function toReconciliationResultStatus(
     state:
         | "PENDING"
@@ -67,6 +51,21 @@ function toReconciliationResultStatus(
             throw new Error(
                 `Cannot persist reconciliation result for non-terminal state: ${state}`,
             );
+    }
+}
+
+function decisionPolicyToTransactionState(
+    policyResult: DecisionPolicyResult,
+): "MATCHED" | "NO_MATCH" | "REVIEW_REQUIRED" {
+    switch (policyResult.decision) {
+        case "MATCH":
+            return "MATCHED";
+
+        case "NO_MATCH":
+            return "NO_MATCH";
+
+        case "REVIEW":
+            return "REVIEW_REQUIRED";
     }
 }
 
@@ -248,13 +247,18 @@ export async function reconciliationService(
             "REVIEW_REQUIRED",
         );
     } else {
-        const legacyState = determineLegacyState(
+        const policyResult = applyDecisionPolicy(
             first.evidence,
         );
 
+        const policyState =
+            decisionPolicyToTransactionState(
+                policyResult,
+            );
+
         finalState = transitionTransactionState(
             candidatesFoundState,
-            legacyState,
+            policyState,
         );
     }
 

@@ -29,6 +29,21 @@ export function compareFinancialField(
     };
 }
 
+export function createFinancialEvidence(
+    field: string,
+    sourceValue: string | null,
+    candidateValue: string | null,
+    explanation: string,
+): FinancialEvidence {
+    return {
+        field,
+        result: "PASS",
+        sourceValue,
+        candidateValue,
+        explanation,
+    };
+}
+
 export function validatePresentFinancialField(
     field: string,
     value: string | null,

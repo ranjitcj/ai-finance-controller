@@ -356,4 +356,182 @@ describe("reconciliationService", () => {
             }
         }
     });
+
+    it("uses the existing Decision Policy for the final financial decision", async () => {
+        const amount = "500.00";
+        const currency = "GBP";
+        const transactionDate = "2026-08-23";
+
+        const externalId = `POLICY-SOURCE-${crypto.randomUUID()}`;
+        const candidateExternalId = `POLICY-CANDIDATE-${crypto.randomUUID()}`;
+        const idempotencyKey = `policy-${crypto.randomUUID()}`;
+
+        let batchId: string | undefined;
+        let sourceFileId: string | undefined;
+        let transactionId: string | undefined;
+        let candidateTransactionId: string | undefined;
+        let resultId: string | undefined;
+
+        try {
+            const [batch] = await db
+                .insert(batches)
+                .values({
+                    status: "READY",
+                })
+                .returning();
+
+            expect(batch).toBeDefined();
+            batchId = batch!.id;
+
+            const [sourceFile] = await db
+                .insert(sourceFiles)
+                .values({
+                    batchId: batch!.id,
+                    fileName: `policy-${crypto.randomUUID()}.csv`,
+                    fileHash: crypto.randomUUID(),
+                    rowCount: 2,
+                })
+                .returning();
+
+            expect(sourceFile).toBeDefined();
+            sourceFileId = sourceFile!.id;
+
+            const [sourceTransaction] = await db
+                .insert(transactions)
+                .values({
+                    batchId: batch!.id,
+                    sourceFileId: sourceFile!.id,
+                    externalId,
+                    amount,
+                    currency,
+                    transactionDate,
+                    reference: "REF-001",
+                    vendor: "acme corp",
+                    status: "PENDING",
+                    sourceRowNumber: 2,
+                })
+                .returning();
+
+            expect(sourceTransaction).toBeDefined();
+            transactionId = sourceTransaction!.id;
+
+            const [candidateTransaction] = await db
+                .insert(transactions)
+                .values({
+                    batchId: batch!.id,
+                    sourceFileId: sourceFile!.id,
+                    externalId: candidateExternalId,
+                    amount,
+                    currency,
+                    transactionDate,
+                    reference: "REF-999",
+                    vendor: "acme corp",
+                    status: "PENDING",
+                    sourceRowNumber: 3,
+                })
+                .returning();
+
+            expect(candidateTransaction).toBeDefined();
+            candidateTransactionId = candidateTransaction!.id;
+
+            const result = await reconciliationService({
+                transactionId,
+                idempotencyKey,
+                currentState: "PENDING",
+                transaction: {
+                    externalId,
+                    amount,
+                    currency,
+                    date: new Date(
+                        `${transactionDate}T00:00:00.000Z`,
+                    ),
+                    reference: "REF-001",
+                    vendor: "acme corp",
+                },
+            });
+
+            /*
+             * Decision Policy behavior:
+             *
+             * amount   PASS
+             * currency PASS
+             * reference FAIL
+             * date     PASS
+             *
+             * Therefore:
+             * REVIEW / REFERENCE_MISMATCH
+             *
+             * The old legacy implementation would have
+             * incorrectly produced NO_MATCH.
+             */
+            expect(result.state).toBe("REVIEW_REQUIRED");
+
+            expect(result.evaluations).toHaveLength(1);
+
+            expect(
+                result.evaluations[0]?.evidence.reference.result,
+            ).toBe("FAIL");
+
+            resultId = result.result.id;
+
+            expect(result.result.status).toBe(
+                "REVIEW_REQUIRED",
+            );
+        } finally {
+            if (resultId) {
+                await db
+                    .delete(reconciliationResults)
+                    .where(
+                        eq(
+                            reconciliationResults.id,
+                            resultId,
+                        ),
+                    );
+            }
+
+            if (candidateTransactionId) {
+                await db
+                    .delete(transactions)
+                    .where(
+                        eq(
+                            transactions.id,
+                            candidateTransactionId,
+                        ),
+                    );
+            }
+
+            if (transactionId) {
+                await db
+                    .delete(transactions)
+                    .where(
+                        eq(
+                            transactions.id,
+                            transactionId,
+                        ),
+                    );
+            }
+
+            if (sourceFileId) {
+                await db
+                    .delete(sourceFiles)
+                    .where(
+                        eq(
+                            sourceFiles.id,
+                            sourceFileId,
+                        ),
+                    );
+            }
+
+            if (batchId) {
+                await db
+                    .delete(batches)
+                    .where(
+                        eq(
+                            batches.id,
+                            batchId,
+                        ),
+                    );
+            }
+        }
+    });
 });
