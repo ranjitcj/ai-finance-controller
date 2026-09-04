@@ -6,7 +6,66 @@ import {
   exceptions,
   auditEvents,
 } from "../schema/reconciliation.schema.js";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
+
+export async function findReconciliationResultById(
+  reconciliationResultId: string,
+) {
+  const [result] = await db
+    .select()
+    .from(reconciliationResults)
+    .where(
+      eq(
+        reconciliationResults.id,
+        reconciliationResultId,
+      ),
+    )
+    .limit(1);
+
+  return result;
+}
+
+export async function findCandidatesByResultId(
+  reconciliationResultId: string,
+) {
+  return db
+    .select()
+    .from(candidates)
+    .where(
+      eq(
+        candidates.reconciliationResultId,
+        reconciliationResultId,
+      ),
+    );
+}
+
+export async function findEvidenceByResultId(
+  reconciliationResultId: string,
+) {
+  return db
+    .select()
+    .from(evidence)
+    .where(
+      eq(
+        evidence.reconciliationResultId,
+        reconciliationResultId,
+      ),
+    );
+}
+
+export async function findExceptionsByResultId(
+  reconciliationResultId: string,
+) {
+  return db
+    .select()
+    .from(exceptions)
+    .where(
+      eq(
+        exceptions.reconciliationResultId,
+        reconciliationResultId,
+      ),
+    );
+}
 
 export async function findReconciliationResultByIdempotencyKey(
   idempotencyKey: string,
@@ -162,4 +221,59 @@ export async function createAuditEvent(input: CreateAuditEventInput) {
   }
 
   return event;
+}
+
+export async function findExceptionsByTransactionId(
+  transactionId: string,
+) {
+  return db
+    .select()
+    .from(exceptions)
+    .where(
+      eq(
+        exceptions.transactionId,
+        transactionId,
+      ),
+    );
+}
+
+export async function findAuditEventsByBatchId(
+  batchId: string,
+) {
+  return db
+    .select()
+    .from(auditEvents)
+    .where(
+      eq(
+        auditEvents.batchId,
+        batchId,
+      ),
+    );
+}
+
+export async function findAuditEventsByTransactionId(
+  transactionId: string,
+) {
+  return db
+    .select()
+    .from(auditEvents)
+    .where(
+      eq(
+        auditEvents.transactionId,
+        transactionId,
+      ),
+    );
+}
+
+export async function findReconciliationResultsByTransactionIds(
+  transactionIds: string[],
+) {
+  if (transactionIds.length === 0) {
+    return [];
+  }
+
+  return db
+    .select()
+    .from(reconciliationResults)
+    .where(inArray(reconciliationResults.transactionId, transactionIds));
 }

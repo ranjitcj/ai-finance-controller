@@ -106,3 +106,12 @@ export async function updateTransactionStatus(
 
   return updated;
 }
+
+export async function findTransactionsByBatchId(
+  batchId: string,
+) {
+  return db
+    .select()
+    .from(transactions)
+    .where(eq(transactions.batchId, batchId));
+}

@@ -6,6 +6,10 @@ export interface RazorpayPaginationOptions<T> {
     path: string;
     pageSize?: number;
     maxPages?: number;
+    query?: Record<
+        string,
+        string | number | boolean | undefined
+    >;
     schema: z.ZodType<{
         items: T[];
     }>;
@@ -41,6 +45,7 @@ export async function fetchAllPages<T>(
         const response = await client.get<unknown>({
             path: options.path,
             query: {
+                ...options.query,
                 count: pageSize,
                 skip,
             },
