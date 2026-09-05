@@ -69,7 +69,7 @@ without allowing AI to directly control financial state.
 
 The Finance Controller uses a layered reconciliation architecture.
 
-```text
+
                  Razorpay
                     │
                     ▼
