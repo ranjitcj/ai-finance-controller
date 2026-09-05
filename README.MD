@@ -1,11 +1,49 @@
-Absolutely. Here is the **complete `README.md` content** tailored to your Razorpay AI Finance Controller buildathon project.
-
-Copy everything below into `README.md`:
-
-````markdown
 # Razorpay AI Finance Controller
 
 > An AI-assisted financial reconciliation platform that combines deterministic financial controls with bounded AI investigation.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Problem](#problem)
+- [Solution](#solution)
+- [Core Design Principle](#core-design-principle)
+- [Architecture](#architecture)
+- [End-to-End Reconciliation Flow](#end-to-end-reconciliation-flow)
+- [Razorpay Integration](#razorpay-integration)
+- [Razorpay Ingestion](#razorpay-ingestion)
+- [Money Handling](#money-handling)
+- [Reconciliation Engine](#reconciliation-engine)
+- [Decision Policy](#decision-policy)
+- [AI Investigation](#ai-investigation)
+- [Bounded Agent](#bounded-agent)
+- [Investigation Tools](#investigation-tools)
+- [Evidence](#evidence)
+- [Auditability](#auditability)
+- [Idempotency](#idempotency)
+- [Transaction State Management](#transaction-state-management)
+- [Database](#database)
+- [Project Structure](#project-structure)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Environment Configuration](#environment-configuration)
+- [Database Setup](#database-setup)
+- [Running the Backend](#running-the-backend)
+- [Running the Frontend](#running-the-frontend)
+- [API Endpoints](#api-endpoints)
+- [Frontend](#frontend)
+- [Synthetic Demo Dataset](#synthetic-demo-dataset)
+- [Testing](#testing)
+- [Test Coverage](#test-coverage)
+- [Current Validation](#current-validation)
+- [Security and Financial Control Model](#security-and-financial-control-model)
+- [Production Roadmap](#production-roadmap)
+- [Demo Story](#demo-story)
+- [Why This Architecture?](#why-this-architecture)
+- [Project Philosophy](#project-philosophy)
+- [License](#license)
+
+---
 
 ## Overview
 
@@ -35,7 +73,7 @@ The platform provides:
 
 ---
 
-# Problem
+## Problem
 
 Financial reconciliation is more than comparing two transaction amounts.
 
@@ -56,20 +94,20 @@ Traditional rule-based reconciliation can identify many straightforward cases, b
 
 The challenge is therefore to combine:
 
-1. **Reliable deterministic financial controls**
-2. **Traceable evidence**
-3. **AI-assisted investigation**
-4. **Human-reviewable outcomes**
+1. Reliable deterministic financial controls
+2. Traceable evidence
+3. AI-assisted investigation
+4. Human-reviewable outcomes
 
 without allowing AI to directly control financial state.
 
 ---
 
-# Solution
+## Solution
 
 The Finance Controller uses a layered reconciliation architecture.
 
-
+```text
                  Razorpay
                     │
                     ▼
@@ -108,86 +146,86 @@ The Finance Controller uses a layered reconciliation architecture.
                     ┌─────────┴─────────┐
                     ▼                   ▼
                 Evidence              Audit
-````
+```
 
 ---
 
-# Core Design Principle
+## Core Design Principle
 
-## AI investigates. Policy decides.
+### AI investigates. Policy decides.
 
 The AI investigator is deliberately separated from the financial decision layer.
 
-### AI can:
+**AI can:**
 
-* Investigate ambiguous transactions
-* Inspect approved financial evidence
-* Call controlled investigation tools
-* Identify relationships between Razorpay entities
-* Explain potential causes
-* Produce structured investigation observations
+- Investigate ambiguous transactions
+- Inspect approved financial evidence
+- Call controlled investigation tools
+- Identify relationships between Razorpay entities
+- Explain potential causes
+- Produce structured investigation observations
 
-### AI cannot:
+**AI cannot:**
 
-* Directly mark transactions as matched
-* Directly mark transactions as reconciled
-* Issue refunds
-* Modify settlements
-* Mutate financial records
-* Bypass the Decision Policy
-* Override deterministic financial controls
+- Directly mark transactions as matched
+- Directly mark transactions as reconciled
+- Issue refunds
+- Modify settlements
+- Mutate financial records
+- Bypass the Decision Policy
+- Override deterministic financial controls
 
 This keeps financial authority deterministic while still using AI where reasoning is valuable.
 
 ---
 
-# Architecture
+## Architecture
 
 The application is implemented as a modular monolith.
 
 ```text
 ┌───────────────────────────────────────────────────────────┐
-│                     Frontend                              │
-│                                                           │
-│ Dashboard | Reconciliation | Investigation | Audit        │
-└──────────────────────────┬────────────────────────────────┘
+│                     Frontend                               │
+│                                                             │
+│ Dashboard | Reconciliation | Investigation | Audit         │
+└──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌───────────────────────────────────────────────────────────┐
 │                       API Layer                            │
-│                                                           │
-│ Routes | Controllers | Validation | Services              │
-└──────────────────────────┬────────────────────────────────┘
+│                                                             │
+│ Routes | Controllers | Validation | Services                │
+└──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌───────────────────────────────────────────────────────────┐
-│                  Reconciliation Layer                     │
-│                                                           │
-│ Candidate Retrieval                                       │
-│ Deterministic Rules                                       │
-│ Razorpay Reconciliation                                   │
-│ Decision Policy                                           │
-│ Evidence                                                 │
-│ State Management                                          │
-└───────────────┬───────────────────────────┬───────────────┘
+│                  Reconciliation Layer                       │
+│                                                             │
+│ Candidate Retrieval                                         │
+│ Deterministic Rules                                         │
+│ Razorpay Reconciliation                                      │
+│ Decision Policy                                              │
+│ Evidence                                                     │
+│ State Management                                             │
+└───────────────┬───────────────────────────┬─────────────────┘
                 │                           │
                 ▼                           ▼
 ┌──────────────────────────┐     ┌──────────────────────────┐
-│      Investigation       │     │       PostgreSQL         │
-│                          │     │                          │
-│ Bounded Agent            │     │ Transactions             │
-│ Tool Registry            │     │ Razorpay Records         │
-│ Tool Validation          │     │ Candidates               │
-│ Timeout Protection       │     │ Evidence                 │
-│ Policy Guard             │     │ Results                  │
-│ OpenAI / Gemini          │     │ Exceptions               │
-└──────────────────────────┘     │ Audit Events             │
+│      Investigation        │     │       PostgreSQL          │
+│                           │     │                           │
+│ Bounded Agent              │     │ Transactions              │
+│ Tool Registry              │     │ Razorpay Records          │
+│ Tool Validation             │     │ Candidates                │
+│ Timeout Protection          │     │ Evidence                  │
+│ Policy Guard                │     │ Results                   │
+│ OpenAI / Gemini              │     │ Exceptions                │
+└──────────────────────────┘     │ Audit Events               │
                                  └──────────────────────────┘
 ```
 
 ---
 
-# End-to-End Reconciliation Flow
+## End-to-End Reconciliation Flow
 
 ```text
 1. Select reconciliation date range
@@ -227,7 +265,7 @@ The application is implemented as a modular monolith.
 
 ---
 
-# Razorpay Integration
+## Razorpay Integration
 
 Razorpay is treated as the source financial system.
 
@@ -235,17 +273,17 @@ The application fetches Razorpay data and maintains a normalized local represent
 
 The application does not write reconciliation decisions back to Razorpay.
 
-## Supported Razorpay entities
+### Supported Razorpay Entities
 
 The data model supports:
 
-* Orders
-* Payments
-* Refunds
-* Settlements
-* Settlement reconciliation records
+- Orders
+- Payments
+- Refunds
+- Settlements
+- Settlement reconciliation records
 
-## Razorpay relationship graph
+### Razorpay Relationship Graph
 
 ```text
 Order
@@ -265,7 +303,7 @@ This relationship graph is used by Razorpay-specific reconciliation and investig
 
 ---
 
-# Razorpay Ingestion
+## Razorpay Ingestion
 
 Razorpay ingestion is implemented under:
 
@@ -284,31 +322,21 @@ razorpay.schemas.ts
 razorpay.types.ts
 ```
 
-## Responsibilities
+### Responsibilities
 
-### API Client
+**API Client** — Handles communication with Razorpay APIs.
 
-Handles communication with Razorpay APIs.
+**Pagination** — Handles collection endpoints that return multiple pages.
 
-### Pagination
+**Schemas** — Validates incoming Razorpay API objects.
 
-Handles collection endpoints that return multiple pages.
+**Mapper** — Converts Razorpay objects into normalized application data.
 
-### Schemas
-
-Validates incoming Razorpay API objects.
-
-### Mapper
-
-Converts Razorpay objects into normalized application data.
-
-### Ingestion Service
-
-Coordinates fetching, validation, normalization and persistence.
+**Ingestion Service** — Coordinates fetching, validation, normalization and persistence.
 
 ---
 
-# Money Handling
+## Money Handling
 
 Razorpay amounts are represented in paise.
 
@@ -326,7 +354,7 @@ Financial values are stored using PostgreSQL numeric precision rather than JavaS
 
 ---
 
-# Reconciliation Engine
+## Reconciliation Engine
 
 The reconciliation engine is located under:
 
@@ -336,39 +364,35 @@ src/reconciliation/
 
 It is divided into several responsibilities.
 
-## Candidate Retrieval
+### Candidate Retrieval
 
 Candidate retrieval identifies records that may correspond to a source transaction.
 
 The system supports:
 
-* Exact retrieval
-* Fuzzy retrieval for the generic/legacy reconciliation path
-* Razorpay-native candidate retrieval
+- Exact retrieval
+- Fuzzy retrieval for the generic/legacy reconciliation path
+- Razorpay-native candidate retrieval
 
-Candidate retrieval itself is deterministic.
+Candidate retrieval itself is deterministic. AI is not used to discover arbitrary financial matches.
 
-AI is not used to discover arbitrary financial matches.
-
----
-
-# Deterministic Rules
+### Deterministic Rules
 
 The reconciliation engine evaluates financial attributes using deterministic rules.
 
 Examples include:
 
-* Amount
-* Currency
-* Date
-* Reference
-* Duplicate detection
+- Amount
+- Currency
+- Date
+- Reference
+- Duplicate detection
 
 These rules produce structured evidence that can be consumed by the Decision Policy.
 
 ---
 
-# Decision Policy
+## Decision Policy
 
 The Decision Policy is the authoritative financial decision layer.
 
@@ -380,22 +404,22 @@ src/reconciliation/policy/decision-policy.ts
 
 Representative outcomes include:
 
-| Condition                      | Decision          |
-| ------------------------------ | ----------------- |
-| Exact reference match          | `MATCHED`         |
-| Exact amount + currency + date | `MATCHED`         |
-| Amount mismatch                | `NO_MATCH`        |
-| Currency mismatch              | `NO_MATCH`        |
-| Duplicate candidate            | `REVIEW_REQUIRED` |
-| Date within tolerance          | `REVIEW_REQUIRED` |
-| Reference mismatch             | `REVIEW_REQUIRED` |
-| Insufficient evidence          | `REVIEW_REQUIRED` |
+| Condition                       | Decision          |
+|----------------------------------|--------------------|
+| Exact reference match            | `MATCHED`          |
+| Exact amount + currency + date   | `MATCHED`          |
+| Amount mismatch                  | `NO_MATCH`         |
+| Currency mismatch                | `NO_MATCH`         |
+| Duplicate candidate              | `REVIEW_REQUIRED`  |
+| Date within tolerance            | `REVIEW_REQUIRED`  |
+| Reference mismatch               | `REVIEW_REQUIRED`  |
+| Insufficient evidence            | `REVIEW_REQUIRED`  |
 
 The policy also produces reason codes and confidence information used by the application.
 
 ---
 
-# AI Investigation
+## AI Investigation
 
 AI is used when deterministic reconciliation identifies an ambiguous case.
 
@@ -405,7 +429,7 @@ The investigation system is located under:
 src/investigation/
 ```
 
-## Investigation architecture
+### Investigation Architecture
 
 ```text
 REVIEW_REQUIRED
@@ -436,7 +460,7 @@ Final Result
 
 ---
 
-# Bounded Agent
+## Bounded Agent
 
 The agent is intentionally constrained.
 
@@ -444,16 +468,16 @@ The bounded-agent architecture ensures that an investigation cannot become an un
 
 Controls include:
 
-* Tool allowlisting
-* Input validation
-* Output validation
-* Timeout protection
-* Policy guards
-* Structured model output
+- Tool allowlisting
+- Input validation
+- Output validation
+- Timeout protection
+- Policy guards
+- Structured model output
 
 ---
 
-# Investigation Tools
+## Investigation Tools
 
 Razorpay-specific investigation tools are located under:
 
@@ -463,86 +487,66 @@ src/investigation/tools/razorpay/
 
 They can investigate:
 
-* Payment/refund relationships
-* Settlement relationships
-* Settlement reconciliation
-* Financial evidence
-* Razorpay transaction relationships
+- Payment/refund relationships
+- Settlement relationships
+- Settlement reconciliation
+- Financial evidence
+- Razorpay transaction relationships
 
 The tools expose controlled information to the investigator rather than granting unrestricted database or financial-system access.
 
 ---
 
-# Evidence
+## Evidence
 
 Evidence is a first-class concept in the system.
 
 A reconciliation result can contain field-level evidence such as:
 
 ```text
-Field:
-amount
-
-Source:
-999.00
-
-Candidate:
-999.00
-
-Explanation:
-Amount matches exactly.
+Field:        amount
+Source:       999.00
+Candidate:    999.00
+Explanation:  Amount matches exactly.
 ```
 
 Other evidence may include:
 
-* Currency comparison
-* Date comparison
-* Reference comparison
-* Candidate score
-* Payment relationship
-* Refund relationship
-* Settlement relationship
-* Investigation observations
+- Currency comparison
+- Date comparison
+- Reference comparison
+- Candidate score
+- Payment relationship
+- Refund relationship
+- Settlement relationship
+- Investigation observations
 
 This makes the final decision explainable.
 
 ---
 
-# Auditability
+## Auditability
 
 The system maintains an audit trail for reconciliation operations.
 
 The database includes concepts for:
 
-* Reconciliation results
-* Candidates
-* Evidence
-* Exceptions
-* Audit events
+- Reconciliation results
+- Candidates
+- Evidence
+- Exceptions
+- Audit events
 
 The result can therefore be traced through:
 
 ```text
-Source Transaction
-       ↓
-Candidate
-       ↓
-Rule Evaluation
-       ↓
-Evidence
-       ↓
-AI Investigation
-       ↓
-Decision Policy
-       ↓
-Final Result
-       ↓
-Audit Event
+Source Transaction → Candidate → Rule Evaluation → Evidence
+    → AI Investigation → Decision Policy → Final Result → Audit Event
 ```
 
 ---
 
-# Idempotency
+## Idempotency
 
 Reconciliation runs are designed to be idempotent.
 
@@ -552,71 +556,49 @@ This is important for financial workflows where jobs may be retried.
 
 ---
 
-# Transaction State Management
+## Transaction State Management
 
 Transactions move through controlled states.
 
 Representative states include:
 
 ```text
-PENDING
-   ↓
-CANDIDATES_FOUND
-   ↓
-INVESTIGATING
-   ↓
-MATCHED / NO_MATCH / REVIEW_REQUIRED
+PENDING → CANDIDATES_FOUND → INVESTIGATING → MATCHED / NO_MATCH / REVIEW_REQUIRED
 ```
 
-Failures are represented explicitly through:
-
-```text
-FAILED
-```
-
-This prevents uncontrolled state transitions.
+Failures are represented explicitly through a `FAILED` state. This prevents uncontrolled state transitions.
 
 ---
 
-# Database
+## Database
 
 PostgreSQL is used as the primary database.
 
 The application uses:
 
-* PostgreSQL
-* Drizzle ORM
-* Relational constraints
-* Foreign keys
-* Unique indexes
-* Numeric monetary fields
-* Database transactions
+- PostgreSQL
+- Drizzle ORM
+- Relational constraints
+- Foreign keys
+- Unique indexes
+- Numeric monetary fields
+- Database transactions
 
-## Why PostgreSQL?
+### Why PostgreSQL?
 
 The system requires strong relational consistency across:
 
 ```text
-Batches
-Source Files
-Transactions
-Orders
-Payments
-Refunds
-Settlements
-Settlement Reconciliation
-Candidates
-Evidence
-Results
-Exceptions
-Audit Events
+Batches, Source Files, Transactions, Orders, Payments, Refunds,
+Settlements, Settlement Reconciliation, Candidates, Evidence,
+Results, Exceptions, Audit Events
 ```
 
 PostgreSQL is therefore a better fit than a lightweight local-only database for the architecture being demonstrated.
 
 ---
 
-# Project Structure
+## Project Structure
 
 ```text
 ai-finance-controller/
@@ -678,52 +660,46 @@ ai-finance-controller/
 
 ---
 
-# Tech Stack
+## Tech Stack
 
-## Backend
+**Backend**
+- Node.js
+- TypeScript
+- Express
+- Zod
+- Drizzle ORM
+- PostgreSQL
 
-* Node.js
-* TypeScript
-* Express
-* Zod
-* Drizzle ORM
-* PostgreSQL
+**Frontend**
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
 
-## Frontend
+**AI**
+- OpenAI
+- Gemini
 
-* Next.js
-* React
-* TypeScript
-* Tailwind CSS
-
-## AI
-
-* OpenAI
-* Gemini
-
-## Testing
-
-* Vitest
-* Unit testing
-* Integration testing
-* API end-to-end testing
+**Testing**
+- Vitest
+- Unit testing
+- Integration testing
+- API end-to-end testing
 
 ---
 
-# Getting Started
+## Getting Started
 
-## Prerequisites
+### Prerequisites
 
 Install:
 
-* Node.js
-* npm
-* PostgreSQL
-* Razorpay Test Mode credentials
+- Node.js
+- npm
+- PostgreSQL
+- Razorpay Test Mode credentials
 
----
-
-## Install Dependencies
+### Install Dependencies
 
 From the project root:
 
@@ -741,7 +717,7 @@ cd ..
 
 ---
 
-# Environment Configuration
+## Environment Configuration
 
 Create your local environment configuration.
 
@@ -759,22 +735,18 @@ GEMINI_API_KEY=your_gemini_api_key
 
 Use Razorpay Test Mode credentials for development and the buildathon demo.
 
-Never commit secrets to Git.
-
-Recommended files:
+Never commit secrets to Git. Recommended files that should remain untracked:
 
 ```text
 .env
 .env.local
 ```
 
-should remain untracked.
-
 Use `.env.example` for documenting required variables without exposing credentials.
 
 ---
 
-# Database Setup
+## Database Setup
 
 Generate migrations:
 
@@ -796,7 +768,7 @@ npm run db:seed
 
 ---
 
-# Running the Backend
+## Running the Backend
 
 Start the development server:
 
@@ -804,15 +776,11 @@ Start the development server:
 npm run dev
 ```
 
-The backend runs on:
-
-```text
-http://localhost:5000
-```
+The backend runs on `http://localhost:5000`.
 
 ---
 
-# Running the Frontend
+## Running the Frontend
 
 Start the Next.js application:
 
@@ -821,23 +789,19 @@ cd frontend
 npm run dev
 ```
 
-The frontend runs on:
-
-```text
-http://localhost:3000
-```
+The frontend runs on `http://localhost:3000`.
 
 ---
 
-# API Endpoints
+## API Endpoints
 
-## Synchronize Razorpay Data
+### Synchronize Razorpay Data
 
 ```http
 POST /api/reconciliation/sync
 ```
 
-Example:
+Example body:
 
 ```json
 {
@@ -846,11 +810,9 @@ Example:
 }
 ```
 
-This synchronizes Razorpay records for the selected date range.
+Synchronizes Razorpay records for the selected date range.
 
----
-
-## Run Reconciliation
+### Run Reconciliation
 
 ```http
 POST /api/reconciliation/:batchId/run
@@ -858,9 +820,7 @@ POST /api/reconciliation/:batchId/run
 
 Runs reconciliation for the selected batch.
 
----
-
-## Reconciliation Status
+### Reconciliation Status
 
 ```http
 GET /api/reconciliation/:id/status
@@ -868,9 +828,7 @@ GET /api/reconciliation/:id/status
 
 Returns the current reconciliation status.
 
----
-
-## Reconciliation Results
+### Reconciliation Results
 
 ```http
 GET /api/reconciliation/:id/results
@@ -878,9 +836,7 @@ GET /api/reconciliation/:id/results
 
 Returns reconciliation results.
 
----
-
-## Exceptions
+### Exceptions
 
 ```http
 GET /api/reconciliation/:id/exceptions
@@ -888,9 +844,7 @@ GET /api/reconciliation/:id/exceptions
 
 Returns reconciliation exceptions requiring attention.
 
----
-
-## Audit
+### Audit
 
 ```http
 GET /api/reconciliation/:id/audit
@@ -900,78 +854,60 @@ Returns the audit trail for the reconciliation batch.
 
 ---
 
-# Frontend
+## Frontend
 
 The frontend provides a finance operations interface.
 
-## Dashboard
+**Dashboard**
+- Reconciliation overview
+- Batch status
+- Exception visibility
+- Recent audit activity
+- Razorpay synchronization
 
-The dashboard provides:
+**Reconciliation**
+- Batch status
+- Transaction results
+- Match status
+- Exceptions
+- Evidence
 
-* Reconciliation overview
-* Batch status
-* Exception visibility
-* Recent audit activity
-* Razorpay synchronization
+**Investigation**
+- Review-required transactions
+- Investigation status
+- Investigation observations
+- Supporting evidence
 
-## Reconciliation
+**Audit**
+- Operational history and traceability
 
-Provides:
-
-* Batch status
-* Transaction results
-* Match status
-* Exceptions
-* Evidence
-
-## Investigation
-
-Provides:
-
-* Review-required transactions
-* Investigation status
-* Investigation observations
-* Supporting evidence
-
-## Audit
-
-Provides operational history and traceability.
-
-## Razorpay Test Payment
-
-The application also includes a Razorpay Test Mode payment flow for demonstrating real Razorpay test transactions.
+**Razorpay Test Payment**
+- A Razorpay Test Mode payment flow for demonstrating real Razorpay test transactions
 
 ---
 
-# Synthetic Demo Dataset
+## Synthetic Demo Dataset
 
 The project includes a synthetic seed dataset for testing reconciliation behavior.
 
 The seed creates 300 transactions across multiple scenarios:
 
-```text
-1–210    Exact Match
-211–240  Amount Mismatch
-241–255  Missing Payment
-256–270  Refund
-271–285  Settlement Mismatch
-286–300  Duplicate
-```
+| Range     | Scenario           |
+|-----------|--------------------|
+| 1–210     | Exact Match        |
+| 211–240   | Amount Mismatch    |
+| 241–255   | Missing Payment    |
+| 256–270   | Refund             |
+| 271–285   | Settlement Mismatch|
+| 286–300   | Duplicate          |
 
-This dataset is intended for:
+This dataset is intended for regression testing, reconciliation demonstrations, edge-case testing, and stress testing.
 
-* Regression testing
-* Reconciliation demonstrations
-* Edge-case testing
-* Stress testing
-
-It should not be represented as real merchant production data.
-
-Razorpay Test Mode data and synthetic seeded data are separate sources.
+It should not be represented as real merchant production data. Razorpay Test Mode data and synthetic seeded data are separate sources.
 
 ---
 
-# Testing
+## Testing
 
 Run the complete test suite:
 
@@ -999,50 +935,50 @@ npm run build
 
 ---
 
-# Test Coverage
+## Test Coverage
 
 The test suite includes coverage for:
 
-* Transaction persistence
-* Database behavior
-* Exact candidate retrieval
-* Razorpay candidate retrieval
-* Reconciliation service
-* Reconciliation orchestration
-* Reconciliation API
-* Exception persistence
-* Audit persistence
-* Decision Policy
-* Decision Policy boundaries
-* Deterministic engine
-* Amount rule
-* Currency rule
-* Date rule
-* Reference rule
-* Duplicate rule
-* Transaction state machine
-* Razorpay schemas
-* Razorpay mapper
-* Razorpay pagination
-* Razorpay client
-* Razorpay reconciliation
-* Payment/refund reconciliation
-* Payment/settlement reconciliation
-* Settlement reconciliation
-* Investigation tools
-* Investigation policy
-* Bounded agent
-* Tool validation
-* Investigation timeout
-* OpenAI provider
-* Gemini provider
-* CSV ingestion
-* Fuzzy search
-* Financial evidence
+- Transaction persistence
+- Database behavior
+- Exact candidate retrieval
+- Razorpay candidate retrieval
+- Reconciliation service
+- Reconciliation orchestration
+- Reconciliation API
+- Exception persistence
+- Audit persistence
+- Decision Policy
+- Decision Policy boundaries
+- Deterministic engine
+- Amount rule
+- Currency rule
+- Date rule
+- Reference rule
+- Duplicate rule
+- Transaction state machine
+- Razorpay schemas
+- Razorpay mapper
+- Razorpay pagination
+- Razorpay client
+- Razorpay reconciliation
+- Payment/refund reconciliation
+- Payment/settlement reconciliation
+- Settlement reconciliation
+- Investigation tools
+- Investigation policy
+- Bounded agent
+- Tool validation
+- Investigation timeout
+- OpenAI provider
+- Gemini provider
+- CSV ingestion
+- Fuzzy search
+- Financial evidence
 
 ---
 
-# Current Validation
+## Current Validation
 
 At the current development checkpoint:
 
@@ -1056,174 +992,117 @@ The repository is being finalized for the buildathon presentation.
 
 ---
 
-# Security and Financial Control Model
+## Security and Financial Control Model
 
 The project deliberately separates:
 
 ```text
-Reasoning
-    ≠
-Financial Authority
+Reasoning ≠ Financial Authority
 ```
 
-AI provides reasoning and investigation assistance.
-
-Deterministic code provides financial authority.
+AI provides reasoning and investigation assistance. Deterministic code provides financial authority.
 
 This separation reduces the risk of:
 
-* Hallucinated financial decisions
-* Unauthorized mutations
-* Untraceable decisions
-* Uncontrolled agent behavior
-* AI bypassing business rules
+- Hallucinated financial decisions
+- Unauthorized mutations
+- Untraceable decisions
+- Uncontrolled agent behavior
+- AI bypassing business rules
 
 ---
 
-# Production Roadmap
+## Production Roadmap
 
 The buildathon implementation can be extended toward production with:
 
-## Authentication and Authorization
+**Authentication and Authorization**
+- User authentication
+- Role-based access control
+- Finance approval workflows
 
-* User authentication
-* Role-based access control
-* Finance approval workflows
+**Razorpay Integration**
+- Production credentials
+- Webhook ingestion
+- Signature verification
+- Incremental synchronization
+- Retry and recovery workflows
 
-## Razorpay Integration
+**Infrastructure**
+- Background reconciliation workers
+- Queue-based processing
+- Distributed locking
+- Observability
+- Metrics
+- Alerting
 
-* Production credentials
-* Webhook ingestion
-* Signature verification
-* Incremental synchronization
-* Retry and recovery workflows
+**Financial Controls**
+- Immutable audit storage
+- Reconciliation period locking
+- Approval workflows
+- Stronger accounting controls
 
-## Infrastructure
-
-* Background reconciliation workers
-* Queue-based processing
-* Distributed locking
-* Observability
-* Metrics
-* Alerting
-
-## Financial Controls
-
-* Immutable audit storage
-* Reconciliation period locking
-* Approval workflows
-* Stronger accounting controls
-
-## AI Governance
-
-* Model/version tracking
-* Prompt versioning
-* Investigation replay
-* Model cost controls
-* Human escalation
-* Additional output validation
+**AI Governance**
+- Model/version tracking
+- Prompt versioning
+- Investigation replay
+- Model cost controls
+- Human escalation
+- Additional output validation
 
 ---
 
-# Demo Story
+## Demo Story
 
-The recommended buildathon demo is:
+The recommended buildathon demo:
 
-### 1. Start with Razorpay
+1. **Start with Razorpay** — Show that Razorpay is the source system.
+2. **Synchronize** — Select a date range and synchronize Razorpay data.
+3. **Reconcile** — Run reconciliation and show `MATCHED` / `NO_MATCH` / `REVIEW_REQUIRED`.
+4. **Open an Exception** — Select a review-required case and show the underlying evidence.
+5. **Investigate with AI** — Demonstrate that the investigator can inspect approved Razorpay financial relationships.
+6. **Explain the Control Boundary** — Show the flow: AI Investigation → Evidence → Decision Policy → Final Financial Result.
+7. **Show Auditability** — Finish by showing the evidence and audit trail behind the result.
 
-Show that Razorpay is the source system.
-
-### 2. Synchronize
-
-Select a date range and synchronize Razorpay data.
-
-### 3. Reconcile
-
-Run reconciliation and show:
-
-```text
-MATCHED
-NO_MATCH
-REVIEW_REQUIRED
-```
-
-### 4. Open an Exception
-
-Select a review-required case.
-
-Show the underlying evidence.
-
-### 5. Investigate with AI
-
-Demonstrate that the investigator can inspect approved Razorpay financial relationships.
-
-### 6. Explain the Control Boundary
-
-Show:
-
-```text
-AI Investigation
-       ↓
-Evidence
-       ↓
-Decision Policy
-       ↓
-Final Financial Result
-```
-
-The key message:
+Key message:
 
 > The AI does not decide where money goes. It investigates why a case is ambiguous, while deterministic policy remains the financial authority.
 
-### 7. Show Auditability
-
-Finish by showing the evidence and audit trail behind the result.
-
 ---
 
-# Why This Architecture?
+## Why This Architecture?
 
 A financial system should not depend on probabilistic reasoning at the point where financial authority is exercised.
 
-The architecture therefore uses:
+The architecture therefore combines:
 
-```text
-Deterministic Rules
-        +
-Deterministic Decision Policy
-        +
-Controlled AI Investigation
-        +
-Evidence
-        +
-Auditability
-```
+- Deterministic rules
+- Deterministic decision policy
+- Controlled AI investigation
+- Evidence
+- Auditability
 
 This provides the benefits of AI without turning the AI model into an uncontrolled financial decision-maker.
 
 ---
 
-# Project Philosophy
+## Project Philosophy
 
 > **Use deterministic systems for financial authority and AI for investigation.**
 
-The goal is not to replace finance controls with an AI model.
+The goal is not to replace finance controls with an AI model. The goal is to build a finance controller that can:
 
-The goal is to build a finance controller that can:
-
-* Reconcile reliably
-* Explain its decisions
-* Investigate ambiguous cases
-* Preserve evidence
-* Maintain auditability
-* Scale toward production workflows
+- Reconcile reliably
+- Explain its decisions
+- Investigate ambiguous cases
+- Preserve evidence
+- Maintain auditability
+- Scale toward production workflows
 
 while keeping the final financial authority deterministic.
 
 ---
 
-# License
+## License
 
-This project was created as a buildathon prototype.
-
-It is provided for demonstration and evaluation purposes.
+This project was created as a buildathon prototype. It is provided for demonstration and evaluation purposes.
