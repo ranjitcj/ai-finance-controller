@@ -183,44 +183,17 @@ This keeps financial authority deterministic while still using AI where reasonin
 
 The application is implemented as a modular monolith.
 
-```text
-┌───────────────────────────────────────────────────────────┐
-│                     Frontend                               │
-│                                                             │
-│ Dashboard | Reconciliation | Investigation | Audit         │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌───────────────────────────────────────────────────────────┐
-│                       API Layer                            │
-│                                                             │
-│ Routes | Controllers | Validation | Services                │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌───────────────────────────────────────────────────────────┐
-│                  Reconciliation Layer                       │
-│                                                             │
-│ Candidate Retrieval                                         │
-│ Deterministic Rules                                         │
-│ Razorpay Reconciliation                                      │
-│ Decision Policy                                              │
-│ Evidence                                                     │
-│ State Management                                             │
-└───────────────┬───────────────────────────┬─────────────────┘
-                │                           │
-                ▼                           ▼
-┌──────────────────────────┐     ┌──────────────────────────┐
-│      Investigation        │     │       PostgreSQL          │
-│                           │     │                           │
-│ Bounded Agent              │     │ Transactions              │
-│ Tool Registry              │     │ Razorpay Records          │
-│ Tool Validation             │     │ Candidates                │
-│ Timeout Protection          │     │ Evidence                  │
-│ Policy Guard                │     │ Results                   │
-│ OpenAI / Gemini              │     │ Exceptions                │
-└──────────────────────────┘     │ Audit Events               │
-                                 └──────────────────────────┘
+```mermaid
+graph TD
+    A["Frontend<br/>Dashboard · Reconciliation · Investigation · Audit"]
+    B["API Layer<br/>Routes · Controllers · Validation · Services"]
+    C["Reconciliation Layer<br/>Candidate Retrieval · Deterministic Rules · Razorpay Reconciliation · Decision Policy · Evidence · State Management"]
+    D["Investigation<br/>Bounded Agent · Tool Registry · Tool Validation · Timeout Protection · Policy Guard · OpenAI / Gemini"]
+    E["PostgreSQL<br/>Transactions · Razorpay Records · Candidates · Evidence · Results · Exceptions · Audit Events"]
+
+    A --> B --> C
+    C --> D
+    C --> E
 ```
 
 ---
