@@ -7,6 +7,15 @@ import {
 } from "../contracts/reconciliation.contract.js";
 
 import {
+    reconciliationSyncResponseSchema,
+    reconciliationRunResponseSchema,
+    reconciliationStatusResponseSchema,
+    reconciliationResultsResponseSchema,
+    reconciliationExceptionsResponseSchema,
+    reconciliationAuditResponseSchema,
+} from "../contracts/api.contract.js";
+
+import {
     runReconciliation,
 } from "../services/reconciliation-run.service.js";
 
@@ -16,7 +25,11 @@ import {
     findReconciliationResultsByTransactionIds,
 } from "../../db/repositories/reconciliation.repository.js";
 
-import { findTransactionsByBatchId } from "../../db/repositories/transaction.repository.js";
+// import { findTransactionsByBatchId } from "../../db/repositories/transaction.repository.js";
+import {
+    findTransactionById,
+    findTransactionsByBatchId,
+} from "../../db/repositories/transaction.repository.js";
 
 import { syncRazorpay } from "../services/reconciliation-sync.service.js";
 
@@ -56,7 +69,7 @@ export async function syncReconciliation(
         },
     );
 
-    response.status(201).json({
+    const payload = {
         data: {
             batchId: result.batch.id,
             sourceFileId: result.sourceFile.id,
@@ -64,7 +77,11 @@ export async function syncReconciliation(
             dateRange: input,
             counts: result.counts,
         },
-    });
+    };
+
+    reconciliationSyncResponseSchema.parse(payload);
+
+    response.status(201).json(payload);
 }
 
 export async function getReconciliationStatus(
@@ -78,41 +95,49 @@ export async function getReconciliationStatus(
 
     const batch = await getBatch(id);
 
-    response.json({
+    const payload = {
         data: {
             batchId: batch.id,
             status: batch.status,
             createdAt: batch.createdAt,
             updatedAt: batch.updatedAt,
         },
-    });
+    };
+
+    reconciliationStatusResponseSchema.parse(payload);
+
+    response.json(payload);
 }
 
-export async function getReconciliationResults(
-    request: Request,
-    response: Response,
-) {
-    const { id: batchId } = parseParams(
-        reconciliationIdParamsSchema,
-        request,
-    );
+// export async function getReconciliationResults(
+//     request: Request,
+//     response: Response,
+// ) {
+//     const { id: batchId } = parseParams(
+//         reconciliationIdParamsSchema,
+//         request,
+//     );
 
-    const batch = await getBatch(batchId);
+//     const batch = await getBatch(batchId);
 
-    const transactions = await findTransactionsByBatchId(batch.id);
+//     const transactions = await findTransactionsByBatchId(batch.id);
 
-    const reconciliationResults =
-        await findReconciliationResultsByTransactionIds(
-            transactions.map((transaction) => transaction.id),
-        );
+//     const reconciliationResults =
+//         await findReconciliationResultsByTransactionIds(
+//             transactions.map((transaction) => transaction.id),
+//         );
 
-    response.json({
-        data: {
-            batchId: batch.id,
-            results: reconciliationResults,
-        },
-    });
-}
+//     const payload = {
+//         data: {
+//             batchId: batch.id,
+//             results: reconciliationResults,
+//         },
+//     };
+
+//     reconciliationResultsResponseSchema.parse(payload);
+
+//     response.json(payload);
+// }
 
 export async function getReconciliationExceptions(
     request: Request,
@@ -136,12 +161,16 @@ export async function getReconciliationExceptions(
         exceptions.push(...transactionExceptions);
     }
 
-    response.json({
+    const payload = {
         data: {
             batchId,
             exceptions,
         },
-    });
+    };
+
+    reconciliationExceptionsResponseSchema.parse(payload);
+
+    response.json(payload);
 }
 
 export async function getReconciliationAudit(
@@ -158,12 +187,16 @@ export async function getReconciliationAudit(
     const events =
         await findAuditEventsByBatchId(id);
 
-    response.json({
+    const payload = {
         data: {
             batchId: batch.id,
             events,
         },
-    });
+    };
+
+    reconciliationAuditResponseSchema.parse(payload);
+
+    response.json(payload);
 }
 
 export async function runReconciliationController(
@@ -178,11 +211,73 @@ export async function runReconciliationController(
     const result =
         await runReconciliation(batchId);
 
-    response.status(200).json({
+    const payload = {
         data: {
             batchId: result.batch.id,
             status: result.batch.status,
             processed: result.processed,
         },
-    });
+    };
+
+    reconciliationRunResponseSchema.parse(payload);
+
+    response.status(200).json(payload);
+}
+
+export async function getReconciliationResults(
+    request: Request,
+    response: Response,
+) {
+    const { id: batchId } = parseParams(
+        reconciliationIdParamsSchema,
+        request,
+    );
+
+    const batch = await getBatch(batchId);
+
+    const transactions = await findTransactionsByBatchId(
+        batch.id,
+    );
+
+    const reconciliationResults =
+        await findReconciliationResultsByTransactionIds(
+            transactions.map(
+                (transaction) => transaction.id,
+            ),
+        );
+
+    const results = [];
+
+    for (const reconciliationResult of reconciliationResults) {
+        const transaction = await findTransactionById(
+            reconciliationResult.transactionId,
+        );
+
+        if (!transaction) {
+            continue;
+        }
+
+        results.push({
+            id: reconciliationResult.id,
+            transactionId: reconciliationResult.transactionId,
+            amount: Number(transaction.amount),
+            currency: transaction.currency,
+            status: reconciliationResult.status,
+            confidence: reconciliationResult.confidence,
+            reason: reconciliationResult.reason,
+            createdAt: reconciliationResult.createdAt,
+            updatedAt: reconciliationResult.updatedAt,
+        });
+    }
+
+    const payload = {
+        data: {
+            batchId: batch.id,
+            results,
+        },
+    };
+
+    reconciliationResultsResponseSchema.parse(payload);
+
+    response.json(payload);
 }

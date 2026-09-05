@@ -49,6 +49,10 @@ export const razorpaySettlementReconSchema = z.object({
     entity: z.string().optional(),
     amount: z.number().optional(),
     currency: z.string().length(3).optional(),
+
+    payment_id: z.string().optional(),
+    refund_id: z.string().optional(),
+    settlement_id: z.string().optional(),
 });
 
 export const razorpayOrdersResponseSchema =

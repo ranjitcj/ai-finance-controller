@@ -20,6 +20,12 @@ type RazorpaySettlement = InferSelectModel<
     typeof razorpaySettlements
 >;
 
+function isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value,
+    );
+}
+
 export type RazorpayCandidateEntity =
     | "ORDER"
     | "PAYMENT"
@@ -60,11 +66,11 @@ export interface RazorpaySettlementReconCandidate {
     record: RazorpaySettlementRecon;
     matchType: "NATIVE_ID" | "NATIVE_RELATIONSHIP";
     matchField:
-        | "id"
-        | "external_id"
-        | "payment_id"
-        | "refund_id"
-        | "settlement_id";
+    | "id"
+    | "external_id"
+    | "payment_id"
+    | "refund_id"
+    | "settlement_id";
 }
 
 export interface RazorpaySettlementCandidate {
@@ -87,8 +93,17 @@ export interface RazorpayCandidateSearchInput {
 /**
  * Find Razorpay-native candidates.
  *
- * Native IDs and persisted Razorpay relationships always take
- * priority over generic amount/date/reference matching.
+ * External Razorpay IDs such as:
+ *   order_xxx
+ *   pay_xxx
+ *   rfnd_xxx
+ *   setl_xxx
+ *
+ * are resolved through their external_id fields before
+ * querying UUID foreign-key relationships.
+ *
+ * Internal UUIDs are only used against UUID columns when
+ * the supplied value is actually a valid UUID.
  *
  * This layer only retrieves candidates.
  *
@@ -109,7 +124,7 @@ export async function findRazorpayCandidates(
      * -------------------------------------------------------------
      */
 
-    if (input.id) {
+    if (input.id && isUuid(input.id)) {
         const orders = await db
             .select()
             .from(razorpayOrders)
@@ -132,19 +147,19 @@ export async function findRazorpayCandidates(
             .where(
                 input.batchId
                     ? and(
-                          eq(
-                              razorpayOrders.externalId,
-                              input.externalId,
-                          ),
-                          eq(
-                              razorpayOrders.batchId,
-                              input.batchId,
-                          ),
-                      )
+                        eq(
+                            razorpayOrders.externalId,
+                            input.externalId,
+                        ),
+                        eq(
+                            razorpayOrders.batchId,
+                            input.batchId,
+                        ),
+                    )
                     : eq(
-                          razorpayOrders.externalId,
-                          input.externalId,
-                      ),
+                        razorpayOrders.externalId,
+                        input.externalId,
+                    ),
             );
 
         for (const order of orders) {
@@ -163,7 +178,7 @@ export async function findRazorpayCandidates(
      * -------------------------------------------------------------
      */
 
-    if (input.id) {
+    if (input.id && isUuid(input.id)) {
         const payments = await db
             .select()
             .from(razorpayPayments)
@@ -186,19 +201,19 @@ export async function findRazorpayCandidates(
             .where(
                 input.batchId
                     ? and(
-                          eq(
-                              razorpayPayments.externalId,
-                              input.externalId,
-                          ),
-                          eq(
-                              razorpayPayments.batchId,
-                              input.batchId,
-                          ),
-                      )
+                        eq(
+                            razorpayPayments.externalId,
+                            input.externalId,
+                        ),
+                        eq(
+                            razorpayPayments.batchId,
+                            input.batchId,
+                        ),
+                    )
                     : eq(
-                          razorpayPayments.externalId,
-                          input.externalId,
-                      ),
+                        razorpayPayments.externalId,
+                        input.externalId,
+                    ),
             );
 
         for (const payment of payments) {
@@ -213,20 +228,80 @@ export async function findRazorpayCandidates(
 
     /*
      * Payment → Order relationship.
+     *
+     * input.orderId may be:
+     *
+     *   order_xxx
+     *      OR
+     *   internal UUID
+     *
+     * Never pass order_xxx directly into payments.orderId,
+     * because payments.orderId is a UUID foreign key.
      */
     if (input.orderId) {
-        const payments = await db
+        let orders = await db
             .select()
-            .from(razorpayPayments)
-            .where(eq(razorpayPayments.orderId, input.orderId));
+            .from(razorpayOrders)
+            .where(
+                input.batchId
+                    ? and(
+                        eq(
+                            razorpayOrders.externalId,
+                            input.orderId,
+                        ),
+                        eq(
+                            razorpayOrders.batchId,
+                            input.batchId,
+                        ),
+                    )
+                    : eq(
+                        razorpayOrders.externalId,
+                        input.orderId,
+                    ),
+            );
 
-        for (const payment of payments) {
-            candidates.push({
-                entityType: "PAYMENT",
-                record: payment,
-                matchType: "NATIVE_RELATIONSHIP",
-                matchField: "order_id",
-            });
+        /*
+         * If the caller supplied an internal order UUID,
+         * resolve it through the primary key.
+         *
+         * IMPORTANT:
+         * Only execute this query when the value is actually
+         * a UUID. This prevents PostgreSQL 22P02 errors.
+         */
+        if (
+            orders.length === 0 &&
+            isUuid(input.orderId)
+        ) {
+            orders = await db
+                .select()
+                .from(razorpayOrders)
+                .where(
+                    eq(
+                        razorpayOrders.id,
+                        input.orderId,
+                    ),
+                );
+        }
+
+        for (const order of orders) {
+            const payments = await db
+                .select()
+                .from(razorpayPayments)
+                .where(
+                    eq(
+                        razorpayPayments.orderId,
+                        order.id,
+                    ),
+                );
+
+            for (const payment of payments) {
+                candidates.push({
+                    entityType: "PAYMENT",
+                    record: payment,
+                    matchType: "NATIVE_RELATIONSHIP",
+                    matchField: "order_id",
+                });
+            }
         }
     }
 
@@ -236,7 +311,7 @@ export async function findRazorpayCandidates(
      * -------------------------------------------------------------
      */
 
-    if (input.id) {
+    if (input.id && isUuid(input.id)) {
         const refunds = await db
             .select()
             .from(razorpayRefunds)
@@ -259,19 +334,19 @@ export async function findRazorpayCandidates(
             .where(
                 input.batchId
                     ? and(
-                          eq(
-                              razorpayRefunds.externalId,
-                              input.externalId,
-                          ),
-                          eq(
-                              razorpayRefunds.batchId,
-                              input.batchId,
-                          ),
-                      )
+                        eq(
+                            razorpayRefunds.externalId,
+                            input.externalId,
+                        ),
+                        eq(
+                            razorpayRefunds.batchId,
+                            input.batchId,
+                        ),
+                    )
                     : eq(
-                          razorpayRefunds.externalId,
-                          input.externalId,
-                      ),
+                        razorpayRefunds.externalId,
+                        input.externalId,
+                    ),
             );
 
         for (const refund of refunds) {
@@ -287,26 +362,70 @@ export async function findRazorpayCandidates(
     /*
      * Payment → Refund relationship.
      *
-     * One payment may have multiple refunds.
+     * input.paymentId may be:
+     *
+     *   pay_xxx
+     *      OR
+     *   internal payment UUID
+     *
+     * Resolve external ID → internal payment UUID first.
      */
     if (input.paymentId) {
-        const refunds = await db
+        let payments = await db
             .select()
-            .from(razorpayRefunds)
+            .from(razorpayPayments)
             .where(
-                eq(
-                    razorpayRefunds.paymentId,
-                    input.paymentId,
-                ),
+                input.batchId
+                    ? and(
+                        eq(
+                            razorpayPayments.externalId,
+                            input.paymentId,
+                        ),
+                        eq(
+                            razorpayPayments.batchId,
+                            input.batchId,
+                        ),
+                    )
+                    : eq(
+                        razorpayPayments.externalId,
+                        input.paymentId,
+                    ),
             );
 
-        for (const refund of refunds) {
-            candidates.push({
-                entityType: "REFUND",
-                record: refund,
-                matchType: "NATIVE_RELATIONSHIP",
-                matchField: "payment_id",
-            });
+        if (
+            payments.length === 0 &&
+            isUuid(input.paymentId)
+        ) {
+            payments = await db
+                .select()
+                .from(razorpayPayments)
+                .where(
+                    eq(
+                        razorpayPayments.id,
+                        input.paymentId,
+                    ),
+                );
+        }
+
+        for (const payment of payments) {
+            const refunds = await db
+                .select()
+                .from(razorpayRefunds)
+                .where(
+                    eq(
+                        razorpayRefunds.paymentId,
+                        payment.id,
+                    ),
+                );
+
+            for (const refund of refunds) {
+                candidates.push({
+                    entityType: "REFUND",
+                    record: refund,
+                    matchType: "NATIVE_RELATIONSHIP",
+                    matchField: "payment_id",
+                });
+            }
         }
     }
 
@@ -316,7 +435,7 @@ export async function findRazorpayCandidates(
      * -------------------------------------------------------------
      */
 
-    if (input.id) {
+    if (input.id && isUuid(input.id)) {
         const settlementRecons = await db
             .select()
             .from(razorpaySettlementRecons)
@@ -344,19 +463,19 @@ export async function findRazorpayCandidates(
             .where(
                 input.batchId
                     ? and(
-                          eq(
-                              razorpaySettlementRecons.externalId,
-                              input.externalId,
-                          ),
-                          eq(
-                              razorpaySettlementRecons.batchId,
-                              input.batchId,
-                          ),
-                      )
+                        eq(
+                            razorpaySettlementRecons.externalId,
+                            input.externalId,
+                        ),
+                        eq(
+                            razorpaySettlementRecons.batchId,
+                            input.batchId,
+                        ),
+                    )
                     : eq(
-                          razorpaySettlementRecons.externalId,
-                          input.externalId,
-                      ),
+                        razorpaySettlementRecons.externalId,
+                        input.externalId,
+                    ),
             );
 
         for (const settlementRecon of settlementRecons) {
@@ -371,49 +490,131 @@ export async function findRazorpayCandidates(
 
     /*
      * Payment → SettlementRecon.
+     *
+     * input.paymentId may be either a Razorpay external ID
+     * or an internal payment UUID.
      */
     if (input.paymentId) {
-        const settlementRecons = await db
+        let payments = await db
             .select()
-            .from(razorpaySettlementRecons)
+            .from(razorpayPayments)
             .where(
-                eq(
-                    razorpaySettlementRecons.paymentId,
-                    input.paymentId,
-                ),
+                input.batchId
+                    ? and(
+                        eq(
+                            razorpayPayments.externalId,
+                            input.paymentId,
+                        ),
+                        eq(
+                            razorpayPayments.batchId,
+                            input.batchId,
+                        ),
+                    )
+                    : eq(
+                        razorpayPayments.externalId,
+                        input.paymentId,
+                    ),
             );
 
-        for (const settlementRecon of settlementRecons) {
-            candidates.push({
-                entityType: "SETTLEMENT_RECON",
-                record: settlementRecon,
-                matchType: "NATIVE_RELATIONSHIP",
-                matchField: "payment_id",
-            });
+        if (
+            payments.length === 0 &&
+            isUuid(input.paymentId)
+        ) {
+            payments = await db
+                .select()
+                .from(razorpayPayments)
+                .where(
+                    eq(
+                        razorpayPayments.id,
+                        input.paymentId,
+                    ),
+                );
+        }
+
+        for (const payment of payments) {
+            const settlementRecons = await db
+                .select()
+                .from(razorpaySettlementRecons)
+                .where(
+                    eq(
+                        razorpaySettlementRecons.paymentId,
+                        payment.id,
+                    ),
+                );
+
+            for (const settlementRecon of settlementRecons) {
+                candidates.push({
+                    entityType: "SETTLEMENT_RECON",
+                    record: settlementRecon,
+                    matchType: "NATIVE_RELATIONSHIP",
+                    matchField: "payment_id",
+                });
+            }
         }
     }
 
     /*
      * Refund → SettlementRecon.
+     *
+     * input.refundId may be either a Razorpay external refund ID
+     * or an internal refund UUID.
      */
     if (input.refundId) {
-        const settlementRecons = await db
+        let refunds = await db
             .select()
-            .from(razorpaySettlementRecons)
+            .from(razorpayRefunds)
             .where(
-                eq(
-                    razorpaySettlementRecons.refundId,
-                    input.refundId,
-                ),
+                input.batchId
+                    ? and(
+                        eq(
+                            razorpayRefunds.externalId,
+                            input.refundId,
+                        ),
+                        eq(
+                            razorpayRefunds.batchId,
+                            input.batchId,
+                        ),
+                    )
+                    : eq(
+                        razorpayRefunds.externalId,
+                        input.refundId,
+                    ),
             );
 
-        for (const settlementRecon of settlementRecons) {
-            candidates.push({
-                entityType: "SETTLEMENT_RECON",
-                record: settlementRecon,
-                matchType: "NATIVE_RELATIONSHIP",
-                matchField: "refund_id",
-            });
+        if (
+            refunds.length === 0 &&
+            isUuid(input.refundId)
+        ) {
+            refunds = await db
+                .select()
+                .from(razorpayRefunds)
+                .where(
+                    eq(
+                        razorpayRefunds.id,
+                        input.refundId,
+                    ),
+                );
+        }
+
+        for (const refund of refunds) {
+            const settlementRecons = await db
+                .select()
+                .from(razorpaySettlementRecons)
+                .where(
+                    eq(
+                        razorpaySettlementRecons.refundId,
+                        refund.id,
+                    ),
+                );
+
+            for (const settlementRecon of settlementRecons) {
+                candidates.push({
+                    entityType: "SETTLEMENT_RECON",
+                    record: settlementRecon,
+                    matchType: "NATIVE_RELATIONSHIP",
+                    matchField: "refund_id",
+                });
+            }
         }
     }
 
@@ -423,7 +624,7 @@ export async function findRazorpayCandidates(
      * -------------------------------------------------------------
      */
 
-    if (input.id) {
+    if (input.id && isUuid(input.id)) {
         const settlements = await db
             .select()
             .from(razorpaySettlements)
@@ -446,19 +647,19 @@ export async function findRazorpayCandidates(
             .where(
                 input.batchId
                     ? and(
-                          eq(
-                              razorpaySettlements.externalId,
-                              input.externalId,
-                          ),
-                          eq(
-                              razorpaySettlements.batchId,
-                              input.batchId,
-                          ),
-                      )
+                        eq(
+                            razorpaySettlements.externalId,
+                            input.externalId,
+                        ),
+                        eq(
+                            razorpaySettlements.batchId,
+                            input.batchId,
+                        ),
+                    )
                     : eq(
-                          razorpaySettlements.externalId,
-                          input.externalId,
-                      ),
+                        razorpaySettlements.externalId,
+                        input.externalId,
+                    ),
             );
 
         for (const settlement of settlements) {
@@ -472,19 +673,74 @@ export async function findRazorpayCandidates(
     }
 
     /*
-     * SettlementRecon → Settlement.
+     * SettlementRecon → Settlement relationship.
+     *
+     * input.settlementId may be either:
+     *
+     * 1. Razorpay external settlement ID:
+     *      setl_xxxxxxxxx
+     *
+     * 2. Internal database settlement UUID:
+     *      550e8400-e29b-41d4-a716-446655440000
+     *
+     * Resolve the identifier to the internal settlement record
+     * before querying settlement-recon relationships.
      */
     if (input.settlementId) {
-        const settlements = await db
-            .select()
-            .from(razorpaySettlements)
-            .where(
-                eq(
-                    razorpaySettlements.id,
-                    input.settlementId,
-                ),
-            );
+        let settlements: RazorpaySettlement[] = [];
 
+        /*
+         * First try Razorpay external ID.
+         *
+         * This supports AI/tool input such as:
+         *   setl_xxxxxxxxx
+         */
+        if (!isUuid(input.settlementId)) {
+            settlements = await db
+                .select()
+                .from(razorpaySettlements)
+                .where(
+                    input.batchId
+                        ? and(
+                            eq(
+                                razorpaySettlements.externalId,
+                                input.settlementId,
+                            ),
+                            eq(
+                                razorpaySettlements.batchId,
+                                input.batchId,
+                            ),
+                        )
+                        : eq(
+                            razorpaySettlements.externalId,
+                            input.settlementId,
+                        ),
+                );
+        }
+
+        /*
+         * If the caller supplied an internal UUID, query the
+         * primary key directly.
+         */
+        if (
+            settlements.length === 0 &&
+            isUuid(input.settlementId)
+        ) {
+            settlements = await db
+                .select()
+                .from(razorpaySettlements)
+                .where(
+                    eq(
+                        razorpaySettlements.id,
+                        input.settlementId,
+                    ),
+                );
+        }
+
+        /*
+         * Settlement itself is a candidate reached through
+         * the SettlementRecon → Settlement relationship.
+         */
         for (const settlement of settlements) {
             candidates.push({
                 entityType: "SETTLEMENT",
@@ -492,6 +748,31 @@ export async function findRazorpayCandidates(
                 matchType: "NATIVE_RELATIONSHIP",
                 matchField: "settlement_id",
             });
+        }
+
+        /*
+         * Now use the resolved internal UUID to find the
+         * corresponding settlement reconciliation records.
+         */
+        for (const settlement of settlements) {
+            const settlementRecons = await db
+                .select()
+                .from(razorpaySettlementRecons)
+                .where(
+                    eq(
+                        razorpaySettlementRecons.settlementId,
+                        settlement.id,
+                    ),
+                );
+
+            for (const settlementRecon of settlementRecons) {
+                candidates.push({
+                    entityType: "SETTLEMENT_RECON",
+                    record: settlementRecon,
+                    matchType: "NATIVE_RELATIONSHIP",
+                    matchField: "settlement_id",
+                });
+            }
         }
     }
 

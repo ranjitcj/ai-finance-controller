@@ -22,6 +22,8 @@ import type {
     DateRangeInput,
 } from "../contracts/reconciliation.contract.js";
 
+import { db } from "../../db/client.js";
+
 export interface ReconciliationSyncServiceOptions {
     keyId: string;
     keySecret: string;
@@ -48,6 +50,7 @@ export async function syncRazorpay(
             baseUrl: options.baseUrl,
         });
 
+        // Keep external API calls outside the database transaction.
         const ingestion = await ingestRazorpay(
             client,
             {
@@ -57,72 +60,91 @@ export async function syncRazorpay(
             },
         );
 
-        const sourceFile = await createSourceFile({
-            batchId: batch.id,
-            fileName: `razorpay-${dateRange.from}-${dateRange.to}`,
-            fileHash: [
-                dateRange.from,
-                dateRange.to,
-            ].join(":"),
-            rowCount: ingestion.transactions.length,
-        });
+        const persistenceResult = await db.transaction(
+            async (tx) => {
+                const sourceFile = await createSourceFile(
+                    {
+                        batchId: batch.id,
+                        fileName: `razorpay-${dateRange.from}-${dateRange.to}`,
+                        fileHash: [
+                            dateRange.from,
+                            dateRange.to,
+                        ].join(":"),
+                        rowCount:
+                            ingestion.transactions.length,
+                    },
+                    tx,
+                );
 
-        await persistRazorpayOrders(
-            batch.id,
-            sourceFile.id,
-            ingestion.rawOrders,
+                await persistRazorpayOrders(
+                    batch.id,
+                    sourceFile.id,
+                    ingestion.rawOrders,
+                    tx,
+                );
+
+                await persistRazorpayPayments(
+                    batch.id,
+                    sourceFile.id,
+                    ingestion.rawPayments,
+                    tx,
+                );
+
+                await persistRazorpayRefunds(
+                    batch.id,
+                    sourceFile.id,
+                    ingestion.rawRefunds,
+                    tx,
+                );
+
+                await persistRazorpaySettlements(
+                    batch.id,
+                    sourceFile.id,
+                    ingestion.rawSettlements,
+                    tx,
+                );
+
+                await persistRazorpaySettlementRecons(
+                    batch.id,
+                    sourceFile.id,
+                    ingestion.rawSettlementRecon,
+                    tx,
+                );
+
+                for (
+                    let index = 0;
+                    index < ingestion.transactions.length;
+                    index += 1
+                ) {
+                    const rawTransaction =
+                        ingestion.transactions[index];
+
+                    if (!rawTransaction) {
+                        continue;
+                    }
+
+                    const normalizedTransaction = {
+                        ...rawTransaction,
+                        currency:
+                            rawTransaction.currency.toUpperCase(),
+                        date: new Date(rawTransaction.date),
+                    };
+
+                    await createTransaction(
+                        {
+                            batchId: batch.id,
+                            sourceFileId: sourceFile.id,
+                            sourceRowNumber: index + 1,
+                            transaction:
+                                normalizedTransaction,
+                        },
+                        tx,
+                    );
+                }
+
+                return sourceFile;
+            },
         );
-
-        await persistRazorpayPayments(
-            batch.id,
-            sourceFile.id,
-            ingestion.rawPayments,
-        );
-
-        await persistRazorpayRefunds(
-            batch.id,
-            sourceFile.id,
-            ingestion.rawRefunds,
-        );
-
-        await persistRazorpaySettlements(
-            batch.id,
-            sourceFile.id,
-            ingestion.rawSettlements,
-        );
-
-        await persistRazorpaySettlementRecons(
-            batch.id,
-            sourceFile.id,
-            ingestion.rawSettlementRecon,
-        );
-
-        for (
-            let index = 0;
-            index < ingestion.transactions.length;
-            index += 1
-        ) {
-            const rawTransaction =
-                ingestion.transactions[index];
-
-            if (!rawTransaction) {
-                continue;
-            }
-
-            const normalizedTransaction = {
-                ...rawTransaction,
-                currency:
-                    rawTransaction.currency.toUpperCase(),
-                date: new Date(rawTransaction.date),
-            };
-
-            await createTransaction({
-                batchId: batch.id,
-                sourceFileId: sourceFile.id,
-                sourceRowNumber: index + 1,
-                transaction: normalizedTransaction,
-            });
-        }
 
         const completedBatch =
             await updateBatchStatus(
@@ -132,7 +154,7 @@ export async function syncRazorpay(
 
         return {
             batch: completedBatch,
-            sourceFile,
+            sourceFile: persistenceResult,
             counts: {
                 orders: ingestion.rawOrders.length,
                 payments: ingestion.rawPayments.length,

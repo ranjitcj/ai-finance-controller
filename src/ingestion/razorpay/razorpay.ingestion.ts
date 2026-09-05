@@ -82,6 +82,90 @@ function dateRangeToQuery(
     };
 }
 
+function addDays(date: Date): Date {
+    const next = new Date(date);
+    next.setUTCDate(next.getUTCDate() + 1);
+    return next;
+}
+
+function formatDateParts(date: Date): {
+    year: number;
+    month: number;
+    day: number;
+} {
+    return {
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+    };
+}
+
+async function fetchSettlementRecon(
+    client: RazorpayClient,
+    options: RazorpayIngestionOptions,
+): Promise<RazorpaySettlementRecon[]> {
+    if (!options.dateRange) {
+        throw new Error(
+            "Settlement recon ingestion requires a date range",
+        );
+    }
+
+    const from = new Date(
+        `${options.dateRange.from}T00:00:00.000Z`,
+    );
+
+    const to = new Date(
+        `${options.dateRange.to}T00:00:00.000Z`,
+    );
+
+    if (
+        Number.isNaN(from.getTime()) ||
+        Number.isNaN(to.getTime())
+    ) {
+        throw new Error(
+            "Settlement recon date range contains an invalid date",
+        );
+    }
+
+    if (from > to) {
+        throw new Error(
+            "Settlement recon date range must have from <= to",
+        );
+    }
+
+    const results: RazorpaySettlementRecon[] = [];
+
+    let current = from;
+
+    while (current <= to) {
+        const { year, month, day } =
+            formatDateParts(current);
+
+        const dailyResults =
+            await fetchAllPages<RazorpaySettlementRecon>(
+                client,
+                {
+                    path: "/settlements/recon/combined",
+                    pageSize: options.pageSize ?? 100,
+                    maxPages: options.maxPages,
+                    query: {
+                        year,
+                        month,
+                        day,
+                    },
+                    schema:
+                        razorpaySettlementReconResponseSchema,
+                },
+            );
+
+        results.push(...dailyResults);
+
+        current = addDays(current);
+    }
+
+    return results;
+}
+
 export async function ingestRazorpay(
     client: RazorpayClient,
     options: RazorpayIngestionOptions = {},
@@ -136,15 +220,9 @@ export async function ingestRazorpay(
         },
     );
 
-    const settlementRecon = await fetchAllPages<RazorpaySettlementRecon>(
+    const settlementRecon = await fetchSettlementRecon(
         client,
-        {
-            path: "/settlement_recon",
-            pageSize,
-            maxPages,
-            query: dateQuery,
-            schema: razorpaySettlementReconResponseSchema,
-        },
+        options,
     );
 
     const mappedOrders = orders.map(mapOrderToTransaction);

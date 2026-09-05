@@ -2,5 +2,9 @@ node_modules/
 dist/
 .env
 .env.*
+.next
 .VSCodeCounter
 !.env.example
+node_modules/
+.next/
+.env.local

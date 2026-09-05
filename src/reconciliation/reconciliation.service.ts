@@ -16,6 +16,8 @@ import {
     createCandidate,
     createEvidence,
     createReconciliationResult,
+    createAuditEvent,
+    createException,
     findReconciliationResultByIdempotencyKey,
 } from "../../src/db/repositories/reconciliation.repository.js";
 
@@ -280,6 +282,59 @@ export async function reconciliationService(
             `Deterministic evidence evaluated. ` +
             `Final state: ${finalState}.`,
     });
+
+    await createAuditEvent({
+        transactionId: input.transactionId,
+        eventType: "RECONCILIATION_CREATED",
+        message:
+            `Reconciliation result created with state ${finalState}.`,
+        metadata: JSON.stringify({
+            reconciliationResultId: result.id,
+            status: finalState,
+            confidence:
+                finalState === "MATCHED"
+                    ? calculateCandidateScore(first.evidence)
+                    : 0,
+        }),
+    });
+
+    if (
+        finalState === "NO_MATCH" ||
+        finalState === "REVIEW_REQUIRED"
+    ) {
+        const severity =
+            finalState === "NO_MATCH"
+                ? "HIGH"
+                : "MEDIUM";
+
+        const code =
+            finalState === "NO_MATCH"
+                ? "RECONCILIATION_NO_MATCH"
+                : "RECONCILIATION_REVIEW_REQUIRED";
+
+        const exception = await createException({
+            transactionId: input.transactionId,
+            reconciliationResultId: result.id,
+            severity,
+            code,
+            message:
+                `Deterministic reconciliation resulted in ${finalState}.`,
+        });
+
+        await createAuditEvent({
+            transactionId: input.transactionId,
+            eventType: "EXCEPTION_CREATED",
+            message:
+                `Exception created for reconciliation state ${finalState}.`,
+            metadata: JSON.stringify({
+                exceptionId: exception.id,
+                reconciliationResultId: result.id,
+                status: finalState,
+                code,
+                severity,
+            }),
+        });
+    }
 
     /*
      * 7. Persist candidate decisions and evidence.

@@ -16,6 +16,11 @@ export interface RazorpayRequestOptions {
     >;
 }
 
+export interface RazorpayPostRequestOptions {
+    path: string;
+    body?: unknown;
+}
+
 export class RazorpayApiError extends Error {
     readonly status: number;
 
@@ -42,50 +47,31 @@ export class RazorpayClient {
 
         this.keyId = config.keyId;
         this.keySecret = config.keySecret;
+
         this.baseUrl = (
             config.baseUrl ?? DEFAULT_BASE_URL
         ).replace(/\/+$/, "");
     }
 
-    async get<T>(
-        options: RazorpayRequestOptions,
-    ): Promise<T> {
-        const path = options.path.startsWith("/")
-            ? options.path
-            : `/${options.path}`;
-
-        const url = new URL(`${this.baseUrl}${path}`);
-
-        for (const [key, value] of Object.entries(
-            options.query ?? {},
-        )) {
-            if (value !== undefined) {
-                url.searchParams.set(key, String(value));
-            }
-        }
-
+    private getAuthHeader(): string {
         const credentials = Buffer.from(
             `${this.keyId}:${this.keySecret}`,
             "utf8",
         ).toString("base64");
 
-        const response = await fetch(
-            url.toString(),
-            {
-                method: "GET",
-                headers: {
-                    Accept: "application/json",
-                    Authorization: `Basic ${credentials}`,
-                },
-            },
-        );
+        return `Basic ${credentials}`;
+    }
 
+    private async handleResponse<T>(
+        response: Response,
+    ): Promise<T> {
         if (!response.ok) {
             let message =
                 `Razorpay API returned HTTP ${response.status}`;
 
             try {
-                const body: unknown = await response.json();
+                const body: unknown =
+                    await response.json();
 
                 if (
                     typeof body === "object" &&
@@ -115,5 +101,60 @@ export class RazorpayClient {
         }
 
         return (await response.json()) as T;
+    }
+
+    async get<T>(
+        options: RazorpayRequestOptions,
+    ): Promise<T> {
+        const path = options.path.startsWith("/")
+            ? options.path
+            : `/${options.path}`;
+
+        const url = new URL(
+            `${this.baseUrl}${path}`,
+        );
+
+        for (const [key, value] of Object.entries(
+            options.query ?? {},
+        )) {
+            if (value !== undefined) {
+                url.searchParams.set(
+                    key,
+                    String(value),
+                );
+            }
+        }
+
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                Authorization: this.getAuthHeader(),
+            },
+        });
+
+        return this.handleResponse<T>(response);
+    }
+
+    async post<T>(
+        options: RazorpayPostRequestOptions,
+    ): Promise<T> {
+        const path = options.path.startsWith("/")
+            ? options.path
+            : `/${options.path}`;
+
+        const url = new URL(
+            `${this.baseUrl}${path}`,
+        );
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                Authorization: this.getAuthHeader(),
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(options.body ?? {}),
+        });
+
+        return this.handleResponse<T>(response);
     }
 }

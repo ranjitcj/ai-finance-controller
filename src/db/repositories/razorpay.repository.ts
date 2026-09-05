@@ -1,4 +1,5 @@
 import { db } from "../client.js";
+import type { DbTransaction } from "../transaction.js";
 import {
     razorpayOrders,
     razorpayPayments,
@@ -14,6 +15,8 @@ import type {
     RazorpaySettlement,
     RazorpaySettlementRecon,
 } from "../../ingestion/razorpay/razorpay.schemas.js";
+
+type DbExecutor = typeof db | DbTransaction;
 
 function mapOrderStatus(
     status: string,
@@ -107,12 +110,13 @@ export async function persistRazorpayOrders(
     batchId: string,
     sourceFileId: string,
     orders: RazorpayOrder[],
+    executor: DbExecutor = db,
 ) {
     if (orders.length === 0) {
         return [];
     }
 
-    return db
+    return executor
         .insert(razorpayOrders)
         .values(
             orders.map((order) => ({
@@ -138,12 +142,13 @@ export async function persistRazorpayPayments(
     batchId: string,
     sourceFileId: string,
     payments: RazorpayPayment[],
+    executor: DbExecutor = db,
 ) {
     if (payments.length === 0) {
         return [];
     }
 
-    const existingOrders = await db
+    const existingOrders = await executor
         .select({
             id: razorpayOrders.id,
             externalId: razorpayOrders.externalId,
@@ -157,7 +162,7 @@ export async function persistRazorpayPayments(
         ]),
     );
 
-    return db
+    return executor
         .insert(razorpayPayments)
         .values(
             payments.map((payment) => ({
@@ -188,12 +193,13 @@ export async function persistRazorpayRefunds(
     batchId: string,
     sourceFileId: string,
     refunds: RazorpayRefund[],
+    executor: DbExecutor = db,
 ) {
     if (refunds.length === 0) {
         return [];
     }
 
-    const existingPayments = await db
+    const existingPayments = await executor
         .select({
             id: razorpayPayments.id,
             externalId: razorpayPayments.externalId,
@@ -234,7 +240,7 @@ export async function persistRazorpayRefunds(
         };
     });
 
-    return db
+    return executor
         .insert(razorpayRefunds)
         .values(values)
         .onConflictDoNothing({
@@ -247,12 +253,13 @@ export async function persistRazorpaySettlements(
     batchId: string,
     sourceFileId: string,
     settlements: RazorpaySettlement[],
+    executor: DbExecutor = db,
 ) {
     if (settlements.length === 0) {
         return [];
     }
 
-    return db
+    return executor
         .insert(razorpaySettlements)
         .values(
             settlements.map((settlement) => ({
@@ -282,40 +289,97 @@ export async function persistRazorpaySettlementRecons(
     batchId: string,
     sourceFileId: string,
     settlementRecons: RazorpaySettlementRecon[],
+    executor: DbExecutor = db,
 ) {
     if (settlementRecons.length === 0) {
         return [];
     }
 
-    return db
-        .insert(razorpaySettlementRecons)
-        .values(
-            settlementRecons.map((recon) => {
-                if (
-                    recon.amount === undefined ||
-                    recon.currency === undefined
-                ) {
-                    throw new Error(
-                        `Settlement reconciliation ${recon.id} is missing amount or currency`,
-                    );
-                }
+    const [existingPayments, existingRefunds, existingSettlements] =
+        await Promise.all([
+            executor
+                .select({
+                    id: razorpayPayments.id,
+                    externalId: razorpayPayments.externalId,
+                })
+                .from(razorpayPayments),
 
-                return {
-                    externalId: recon.id,
-                    batchId,
-                    sourceFileId,
-                    amount: (
-                        recon.amount / 100
-                    ).toFixed(2),
-                    currency:
-                        recon.currency.toUpperCase(),
-                    rawPayload: recon,
-                };
-            }),
-        )
+            executor
+                .select({
+                    id: razorpayRefunds.id,
+                    externalId: razorpayRefunds.externalId,
+                })
+                .from(razorpayRefunds),
+
+            executor
+                .select({
+                    id: razorpaySettlements.id,
+                    externalId: razorpaySettlements.externalId,
+                })
+                .from(razorpaySettlements),
+        ]);
+
+    const paymentIdByExternalId = new Map(
+        existingPayments.map((payment) => [
+            payment.externalId,
+            payment.id,
+        ]),
+    );
+
+    const refundIdByExternalId = new Map(
+        existingRefunds.map((refund) => [
+            refund.externalId,
+            refund.id,
+        ]),
+    );
+
+    const settlementIdByExternalId = new Map(
+        existingSettlements.map((settlement) => [
+            settlement.externalId,
+            settlement.id,
+        ]),
+    );
+
+    const values = settlementRecons.map((recon) => {
+        if (
+            recon.amount === undefined ||
+            recon.currency === undefined
+        ) {
+            throw new Error(
+                `Settlement reconciliation ${recon.id} is missing amount or currency`,
+            );
+        }
+
+        const raw = recon as RazorpaySettlementRecon & {
+            payment_id?: string;
+            refund_id?: string;
+            settlement_id?: string;
+        };
+
+        return {
+            externalId: recon.id,
+            paymentId: raw.payment_id
+                ? paymentIdByExternalId.get(raw.payment_id) ?? null
+                : null,
+            refundId: raw.refund_id
+                ? refundIdByExternalId.get(raw.refund_id) ?? null
+                : null,
+            settlementId: raw.settlement_id
+                ? settlementIdByExternalId.get(raw.settlement_id) ?? null
+                : null,
+            batchId,
+            sourceFileId,
+            amount: (recon.amount / 100).toFixed(2),
+            currency: recon.currency.toUpperCase(),
+            rawPayload: recon,
+        };
+    });
+
+    return executor
+        .insert(razorpaySettlementRecons)
+        .values(values)
         .onConflictDoNothing({
-            target:
-                razorpaySettlementRecons.externalId,
+            target: razorpaySettlementRecons.externalId,
         })
         .returning();
 }

@@ -1,4 +1,5 @@
 import { db } from "../client.js";
+import type { DbTransaction } from "../transaction.js";
 import { batches } from "../schema/transaction.schema.js";
 import { eq } from "drizzle-orm";
 
@@ -10,8 +11,10 @@ export type BatchStatus =
   | "COMPLETED"
   | "FAILED";
 
-export async function createBatch() {
-  const [batch] = await db
+export async function createBatch(
+  executor: typeof db | DbTransaction = db,
+) {
+  const [batch] = await executor
     .insert(batches)
     .values({
       status: "UPLOADED",
@@ -28,8 +31,9 @@ export async function createBatch() {
 export async function updateBatchStatus(
   batchId: string,
   status: BatchStatus,
+  executor: typeof db | DbTransaction = db,
 ) {
-  const [updated] = await db
+  const [updated] = await executor
     .update(batches)
     .set({
       status,

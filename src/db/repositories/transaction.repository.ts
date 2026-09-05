@@ -6,6 +6,8 @@ import {
   transitionTransactionState,
   type TransactionState,
 } from "../../reconciliation/state/transaction-state.js";
+import type { DbTransaction } from "../transaction.js";
+type DbExecutor = typeof db | DbTransaction;
 export interface CreateTransactionInput {
   batchId: string;
   sourceFileId: string;
@@ -57,8 +59,11 @@ export async function transitionTransaction(
   return updated;
 }
 
-export async function createTransaction(input: CreateTransactionInput) {
-  const [created] = await db
+export async function createTransaction(
+  input: CreateTransactionInput,
+  executor: DbExecutor = db,
+) {
+  const [created] = await executor
     .insert(transactions)
     .values({
       batchId: input.batchId,
@@ -68,7 +73,8 @@ export async function createTransaction(input: CreateTransactionInput) {
       externalId: input.transaction.externalId,
       amount: input.transaction.amount,
       currency: input.transaction.currency,
-      transactionDate: input.transaction.date.toISOString().slice(0, 10),
+      transactionDate:
+        input.transaction.date.toISOString().slice(0, 10),
       reference: input.transaction.reference,
       vendor: input.transaction.vendor,
     })
@@ -114,4 +120,14 @@ export async function findTransactionsByBatchId(
     .select()
     .from(transactions)
     .where(eq(transactions.batchId, batchId));
+}
+
+export async function findTransactionById(id: string) {
+    const result = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.id, id))
+        .limit(1);
+
+    return result[0] ?? null;
 }

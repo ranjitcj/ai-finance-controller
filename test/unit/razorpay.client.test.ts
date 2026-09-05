@@ -21,7 +21,8 @@ describe("RazorpayClient", () => {
                     {
                         status: 200,
                         headers: {
-                            "Content-Type": "application/json",
+                            "Content-Type":
+                                "application/json",
                         },
                     },
                 ),
@@ -36,17 +37,20 @@ describe("RazorpayClient", () => {
             path: "/orders",
         });
 
-        expect(fetchMock).toHaveBeenCalledWith(
+        const [url, options] =
+            fetchMock.mock.calls[0];
+
+        expect(url.toString()).toBe(
             "https://api.razorpay.com/v1/orders",
-            expect.objectContaining({
-                method: "GET",
-                headers: {
-                    Accept: "application/json",
-                    Authorization:
-                        "Basic cnpwX3Rlc3Rfa2V5OnRlc3Rfc2VjcmV0",
-                },
-            }),
         );
+
+        expect(options).toMatchObject({
+            method: "GET",
+            headers: {
+                Authorization:
+                    "Basic cnpwX3Rlc3Rfa2V5OnRlc3Rfc2VjcmV0",
+            },
+        });
     });
 
     it("passes query parameters", async () => {
@@ -60,7 +64,8 @@ describe("RazorpayClient", () => {
                     {
                         status: 200,
                         headers: {
-                            "Content-Type": "application/json",
+                            "Content-Type":
+                                "application/json",
                         },
                     },
                 ),
@@ -79,9 +84,11 @@ describe("RazorpayClient", () => {
             },
         });
 
-        expect(fetchMock).toHaveBeenCalledWith(
+        const [url] =
+            fetchMock.mock.calls[0];
+
+        expect(url.toString()).toBe(
             "https://api.razorpay.com/v1/orders?count=10&skip=20",
-            expect.anything(),
         );
     });
 

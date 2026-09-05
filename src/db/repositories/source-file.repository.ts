@@ -1,4 +1,5 @@
 import { db } from "../client.js";
+import type { DbTransaction } from "../transaction.js";
 import { sourceFiles } from "../schema/transaction.schema.js";
 
 export interface CreateSourceFileInput {
@@ -8,8 +9,13 @@ export interface CreateSourceFileInput {
   rowCount: number;
 }
 
-export async function createSourceFile(input: CreateSourceFileInput) {
-  const [sourceFile] = await db
+type DbExecutor = typeof db | DbTransaction;
+
+export async function createSourceFile(
+  input: CreateSourceFileInput,
+  executor: DbExecutor = db,
+) {
+  const [sourceFile] = await executor
     .insert(sourceFiles)
     .values({
       batchId: input.batchId,
