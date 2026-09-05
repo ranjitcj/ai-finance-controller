@@ -224,7 +224,9 @@ function AuditTimelineItem({
     );
 }
 
-function formatEventType(type: string) {
+function formatEventType(type?: string | null) {
+    if (!type) return "Unknown Event";
+
     return type.replaceAll("_", " ");
 }
 
